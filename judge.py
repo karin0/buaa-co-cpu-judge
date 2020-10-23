@@ -193,3 +193,4 @@ if __name__ == '__main__':
     judge = Judge(args.logisim_path, args.mars_path, args.java_path, args.pc_width, args.dm_addr_width, args.pc_by_word, args.dm_addr_by_word)
     if judge(args.circ_path, args.asm_path, args.ifu_circ_name):
         print('Differs!', file=sys.stderr)
+        sys.exit(1)
