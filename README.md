@@ -5,7 +5,7 @@ This helps to assemble and run your .asm program with MARS, load dumped instruct
 
 ### Usage
 
-First, set up output pins in your `main` circuit in order of PC (32-bit by default), GRF_WRITE_ENABLED (1-bit), GRF_WRITE_ADDRESS (5-bit), GRF_WRITE_DATA (32-bit), DM_WRITE_ENABLED (1-bit), DM_WRITE_ADDRESS (32-bit by default), DM_WRITE_DATA (32-bit), and HALT (1-bit). HALT should be pulled to 1 when the entire program have finished.
+First, set up output pins in your `main` circuit in order of PC (32-bit by default), GRF_WRITE_ENABLED (1-bit), GRF_WRITE_ADDRESS (5-bit), GRF_WRITE_DATA (32-bit), DM_WRITE_ENABLED (1-bit), DM_WRITE_ADDRESS (32-bit by default), DM_WRITE_DATA (32-bit), and HALT (1-bit). HALT should be pulled to 1 when the entire program has finished.
 
 GRF_WRITE_ADDRESS and GRF_WRITE_DATA are ignored when judging if GRF_WRITE_ENABLED is 0, and the same goes for DM.
 
