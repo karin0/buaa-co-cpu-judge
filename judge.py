@@ -62,15 +62,15 @@ class LogLine:
         return None
 
 
-def gen_cpu(cpu_fn, prog_hex_fn, ifu_circ_name):
-    tree = ET.parse(cpu_fn)
+def gen_cpu(circ_path, prog_hex_fn, ifu_circ_name):
+    tree = ET.parse(circ_path)
     root = tree.getroot()
     if ifu_circ_name is None:
         cont = root.find('./circuit/comp[@name="ROM"]/a[@name="contents"]')
     else:
         cont = root.find('./circuit[@name="{' + ifu_circ_name + '"]/comp[@name="ROM"]/a[@name="contents"]')
     if cont is None:
-        raise ValueError('no rom comp found for ' + cpu_fn)
+        raise ValueError('no rom comp found for ' + circ_path)
 
     s = cont.text
     desc = s[:s.find('\n')]
@@ -107,14 +107,14 @@ def gen_cpu(cpu_fn, prog_hex_fn, ifu_circ_name):
         lines.append(' '.join(line))
     cont.text = '\n'.join(lines) + '\n'
     ha = md5(prog.encode('utf-8')).hexdigest()[:10]
-    new_cpu_fn = os.path.join(tmp_pre, ('-' + ha).join(os.path.splitext(os.path.basename(cpu_fn))))
-    tree.write(new_cpu_fn)
-    return new_cpu_fn
+    new_circ_path = os.path.join(tmp_pre, ('-' + ha).join(os.path.splitext(os.path.basename(circ_path))))
+    tree.write(new_circ_path)
+    return new_circ_path
 
 
 class Judge:
 
-    def __init__(self, logisim_path, mars_path,
+    def __init__(self, logisim_path, mars_path='kits/Mars_Changed.jar',
         java_path='java',
         pc_width=32,
         dma_width=32,
@@ -133,13 +133,13 @@ class Judge:
         self.pc_by_word = pc_by_word
         self.dma_by_word = dma_by_word
 
-    def __call__(self, cpu_fn, asm_fn, ifu_circ_name=None):
-        hex_fn = os.path.join(tmp_pre, os.path.basename(asm_fn) + '.hex')
-        ans_fn = os.path.join(tmp_pre, os.path.basename(asm_fn) + '.ans')
+    def __call__(self, circ_path, asm_path, ifu_circ_name=None):
+        hex_fn = os.path.join(tmp_pre, os.path.basename(asm_path) + '.hex')
+        ans_fn = os.path.join(tmp_pre, os.path.basename(asm_path) + '.ans')
 
         with open(ans_fn, 'w', encoding='utf-8') as fp:
             with subprocess.Popen(
-                [self.java_path, '-jar', self.mars_path, asm_fn,
+                [self.java_path, '-jar', self.mars_path, asm_path,
                     'mc', 'CompactDataAtZero', 'dump', '.text', 'HexText', hex_fn],
                 stdout=subprocess.PIPE) as proc:
                 for line in proc.stdout:
@@ -149,10 +149,10 @@ class Judge:
             if proc.returncode:
                 raise RuntimeError('MARS process returned ' + str(proc.returncode))
 
-        cpu_fn = gen_cpu(cpu_fn, hex_fn, ifu_circ_name)
-        out_fn = os.path.join(tmp_pre, os.path.basename(asm_fn) + '.out')
+        circ_path = gen_cpu(circ_path, hex_fn, ifu_circ_name)
+        out_fn = os.path.join(tmp_pre, os.path.basename(asm_path) + '.out')
         with open(out_fn, 'w', encoding='utf-8') as fp:
-            with subprocess.Popen([self.java_path, '-jar', self.logisim_path, cpu_fn, '-tty', 'table'], stdout=subprocess.PIPE) as proc:
+            with subprocess.Popen([self.java_path, '-jar', self.logisim_path, circ_path, '-tty', 'table'], stdout=subprocess.PIPE) as proc:
                 for line in proc.stdout:
                     r = LogLine(line.decode()).parse(self.pc_width, self.dma_width, self.pc_by_word, self.dma_by_word)
                     if r:
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     parser.add_argument('circ_path', help='path to your Logisim project file')
     parser.add_argument('asm_path', help='path to the .asm program to load into circuit and run in MARS')
     parser.add_argument('logisim_path', help='path to local Logisim .jar file')
-    parser.add_argument('--mars_path', help='path to local MARS .jar file, kits/Mars_Changed.jar by default',
+    parser.add_argument('mars_path', nargs='?', help='path to local MARS .jar file, "kits/Mars_Changed.jar" by default',
                         default='kits/Mars_Changed.jar')
     parser.add_argument('--java_path', metavar='path',
                         default='java', help='path to your jre binary, omit this if java is in your path environment')
