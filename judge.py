@@ -38,7 +38,7 @@ class LogLine:
     def take_hex(self, n):
         return to_hex(self.take(n))
 
-    def parse(self, pc_width=32, dma_width=32, pc_by_word=False, dma_by_word=False):
+    def parse(self, pc_width=32, dma_width=5, pc_by_word=False, dma_by_word=False):
         pc = self.take(pc_width)
         if pc_by_word:
             pc = 0x3000 + pc * 4
@@ -117,7 +117,7 @@ class Judge:
     def __init__(self, logisim_path, mars_path='kits/Mars_Changed.jar',
         java_path='java',
         pc_width=32,
-        dma_width=32,
+        dma_width=5,
         pc_by_word=False,
         dma_by_word=False
         ):
@@ -183,7 +183,7 @@ if __name__ == '__main__':
     parser.add_argument('--pc_width', metavar='width',
                         default=32, help='width of PC in CPU output, 32 by default')
     parser.add_argument('--dm_addr_width', metavar='width',
-                        default=32, help='width of written DM address in output, 32 by default')
+                        default=5, help='width of written DM address in output, 5 by default')
     parser.add_argument('--pc_by_word', action='store_true',
                         help='specify this if output PC is word addressing (0, 1, 2, ..), otherwise it should be compatible with MARS (0x3000, 0x3004, ...)')
     parser.add_argument('--dm_addr_by_word', action='store_true',
