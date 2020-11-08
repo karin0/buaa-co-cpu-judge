@@ -189,7 +189,7 @@ class Judge:
         self._call([self.java_path, '-jar', self.mars_path, asm_path,
                 'nc', 'mc', 'CompactDataAtZero', 'dump', '.text', 'HexText', hex_fn],
             ans_fn, self._mars_communicate, mars_timeout,
-            'MARS simulation timed out (> {} secs), maybe a infinite loop, see ' + ans_fn, 'MARS'
+            'MARS simulation timed out (> {} secs), maybe an infinite loop, see ' + ans_fn, 'MARS'
         )
 
         circ_path = gen_cpu(circ_path, hex_fn, ifu_circ_name)
