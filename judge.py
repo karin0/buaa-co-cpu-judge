@@ -228,9 +228,9 @@ if __name__ == '__main__':
                         default=dma_width_default, help='width of DM_WRITE_ADDRESS in output, {} by default'.format(dma_width_default))
     parser.add_argument('--dm_addr_by_word', action='store_true',
                         help='specify this if output DM address is word addressing')
-    parser.add_argument('--logisim_timeout', metavar='secs',
+    parser.add_argument('--logisim_timeout', metavar='secs', type=int,
                         default=logisim_timeout_default, help='timeout for Logisim simulation, {} by default'.format(logisim_timeout_default))
-    parser.add_argument('--mars_timeout', metavar='secs',
+    parser.add_argument('--mars_timeout', metavar='secs', type=int,
                         default=mars_timeout_default, help='timeout for MARS simulation, {} by default'.format(mars_timeout_default))
 
     args = parser.parse_args()
