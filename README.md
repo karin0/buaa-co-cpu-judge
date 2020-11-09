@@ -12,7 +12,7 @@ Set the output pins in your `main` circuit in order of PC (32-bit by default), G
 #### CLI
 
 ```shell
-$ python judge.py p3.circ test.asm somewhere/logisim.jar
+$ python judge.py p3.circ test.asm somewhere/logisim.jar --dm_addr_width 5 --dm_addr_by_word
 ```
 
 This loads dumpped instructions into the Logisim project, runs MARS and Logisim simulations and checks the output. Both output files can be found in folder `./tmp`.

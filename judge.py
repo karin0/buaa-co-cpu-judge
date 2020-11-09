@@ -1,7 +1,6 @@
 import os, os.path, sys, subprocess, string, argparse
 import xml.etree.ElementTree as ET
 from hashlib import md5
-from ast import literal_eval
 
 tmp_pre = 'tmp'
 diff_fn = 'fc' if os.name == 'nt' else 'diff'
@@ -9,7 +8,7 @@ diff_fn = 'fc' if os.name == 'nt' else 'diff'
 pc_width_default = 32
 pc_by_word_default = False
 pc_start_default = 0
-dma_width_default = 5
+dma_width_default = 32
 dma_by_word_default = False
 logisim_timeout_default = 1
 mars_timeout_default = 1
@@ -219,13 +218,13 @@ if __name__ == '__main__':
                         default='java', help='path to your jre binary, omit this if java is in your path environment')
     parser.add_argument('--ifu_circ_name', metavar='ifu',
                         default=None, help='name of the circuit containing the ROM to load dumped instructions, omit to find in the whole project')
-    parser.add_argument('--pc_width', metavar='width',
+    parser.add_argument('--pc_width', metavar='width', type=int,
                         default=pc_width_default, help='width of output PC, {} by default'.format(pc_by_word_default))
-    parser.add_argument('--pc_start', metavar='addr',
+    parser.add_argument('--pc_start', metavar='addr', type=int,
                         default=str(pc_start_default), help='starting address of output PC, {} by default'.format(hex(pc_start_default)))
     parser.add_argument('--pc_by_word', action='store_true',
                         help='specify this if output PC is word addressing')
-    parser.add_argument('--dm_addr_width', metavar='width',
+    parser.add_argument('--dm_addr_width', metavar='width', type=int,
                         default=dma_width_default, help='width of DM_WRITE_ADDRESS in output, {} by default'.format(dma_width_default))
     parser.add_argument('--dm_addr_by_word', action='store_true',
                         help='specify this if output DM address is word addressing')
@@ -236,7 +235,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     judge = Judge(args.logisim_path, args.mars_path, args.java_path,
-        args.pc_width, args.pc_by_word, int(literal_eval(args.pc_start)),
+        args.pc_width, args.pc_by_word, args.pc_start,
         args.dm_addr_width, args.dm_addr_by_word)
     try:
         judge(args.circ_path, args.asm_path, args.ifu_circ_name, args.logisim_timeout, args.mars_timeout)
