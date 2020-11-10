@@ -177,7 +177,6 @@ class Judge:
                     proc.kill()
                     handler(proc, fp)
                     raise Judge.VerificationFailed(timeout_msg.format(timeout)) from e
-            print(cmd, proc.returncode)
             if proc.returncode:
                 raise Judge.VerificationFailed(error_meta + ' subprocess returned ' + str(proc.returncode))
 
