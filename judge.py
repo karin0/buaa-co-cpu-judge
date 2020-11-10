@@ -149,6 +149,8 @@ class Judge:
     def _mars_communicate(proc, fp, timeout=None):
         for line in proc.communicate(timeout=timeout)[0].splitlines():
             s = line.decode().strip()
+            if 'error' in s.lower():
+                raise Judge.VerificationFailed('MARS reported ' + s)
             if s.startswith('@'):
                 fp.write(s + '\n')
 
@@ -175,8 +177,9 @@ class Judge:
                     proc.kill()
                     handler(proc, fp)
                     raise Judge.VerificationFailed(timeout_msg.format(timeout)) from e
-                if proc.returncode:
-                    raise Judge.VerificationFailed(error_meta + ' subprocess returned ' + str(proc.returncode))
+            print(cmd, proc.returncode)
+            if proc.returncode:
+                raise Judge.VerificationFailed(error_meta + ' subprocess returned ' + str(proc.returncode))
 
     def __call__(self, circ_path, asm_path,
         ifu_circ_name=None,
