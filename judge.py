@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 from hashlib import md5
 
 tmp_pre = 'tmp'
-diff_fn = 'fc' if os.name == 'nt' else 'diff'
+diff_path_default = 'fc' if os.name == 'nt' else 'diff'
 
 pc_width_default = 32
 pc_by_word_default = False
@@ -126,6 +126,7 @@ class Judge:
 
     def __init__(self, logisim_path, mars_path=mars_path_default,
         java_path='java',
+        diff_path=diff_path_default,
         pc_width=pc_width_default,
         pc_by_word=pc_by_word_default,
         pc_start=pc_start_default,
@@ -138,6 +139,7 @@ class Judge:
         self.logisim_path = logisim_path
         self.mars_path = mars_path
         self.java_path = java_path
+        self.diff_path = diff_path
 
         self.pc_width = pc_width
         self.pc_by_word = pc_by_word
@@ -200,7 +202,7 @@ class Judge:
             'Logisim circuit timed out (> {} secs) before halting, see ' + out_fn, 'Logisim'
         )
 
-        if subprocess.run([diff_fn, out_fn, ans_fn]).returncode:
+        if subprocess.run([self.diff_path, out_fn, ans_fn]).returncode:
             raise Judge.VerificationFailed('output differs, see {} and {}'.format(out_fn, ans_fn))
 
 def dump_self():
@@ -218,6 +220,8 @@ if __name__ == '__main__':
                         default=mars_path_default)
     parser.add_argument('--java_path', metavar='path',
                         default='java', help='path to your jre binary, omit this if java is in your path environment')
+    parser.add_argument('--diff_path', metavar='path',
+                        default=diff_path_default, help='path to your diff tool, "diff" for POSIX and "fc" for win32 by default')
     parser.add_argument('--ifu_circ_name', metavar='ifu',
                         default=None, help='name of the circuit containing the ROM to load dumped instructions, omit to find in the whole project')
     parser.add_argument('--pc_width', metavar='width', type=int,
@@ -236,7 +240,7 @@ if __name__ == '__main__':
                         default=mars_timeout_default, help='timeout for MARS simulation, {} by default'.format(mars_timeout_default))
 
     args = parser.parse_args()
-    judge = Judge(args.logisim_path, args.mars_path, args.java_path,
+    judge = Judge(args.logisim_path, args.mars_path, args.java_path, args.diff_path,
         args.pc_width, args.pc_by_word, args.pc_start,
         args.dm_addr_width, args.dm_addr_by_word)
     try:

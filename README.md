@@ -26,7 +26,7 @@ This shows extra options of the CLI tool.
 
 #### Python APIs
 
-- `class Judge(logisim_path, mars_path='kits/Mars_Changed.jar', java_path='java', pc_width=32, pc_by_word=False, pc_start=0x0000, dma_width=5, dma_by_word=False)`
+- `class Judge(logisim_path, mars_path='kits/Mars_Changed.jar', java_path='java', diff_path='fc' if os.name == 'nt' else 'diff', pc_width=32, pc_by_word=False, pc_start=0x0000, dma_width=5, dma_by_word=False)`
 
 - `Judge.__call__(circ_path, asm_path, ifu_circ_name=None, logisim_timeout=1, mars_timeout=1)`
 
