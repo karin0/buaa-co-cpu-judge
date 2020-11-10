@@ -3,11 +3,11 @@ BUAA-CO-Logisim-Judger](https://github.com/biopuppet/BUAA-CO-Logisim-Judger).
 
 This helps to verify MIPS CPU circuits in Logisim against behaviours from MARS simulation of given .asm program.
 
+### Getting started
+
+You will need to set up the output pins in your `main` circuit in order of PC (32-bit by default), GRF_WRITE_ENABLED (1-bit), GRF_WRITE_ADDRESS (5-bit), GRF_WRITE_DATA (32-bit), DM_WRITE_ENABLED (1-bit), DM_WRITE_ADDRESS (5-bit by default), DM_WRITE_DATA (32-bit), and halt (1-bit). The output pin labelled "halt" should be pulled to 1 if the entire program is about to finish (i. e. the IM address will overflow in the **next** cycle, so other outputs are **not** ignored when halt is 1), and all the other pins are not required to be labelled. Dumped instructions for verification will be loaded into the ROM component automatically.
+
 ### Usage
-
-#### Setting up
-
-Set the output pins in your `main` circuit in order of PC (32-bit by default), GRF_WRITE_ENABLED (1-bit), GRF_WRITE_ADDRESS (5-bit), GRF_WRITE_DATA (32-bit), DM_WRITE_ENABLED (1-bit), DM_WRITE_ADDRESS (5-bit by default), DM_WRITE_DATA (32-bit), and halt (1-bit). The output pin labelled "halt" should be pulled to 1 if the entire program is about to finish (i. e. the IM address will overflow in the **next** cycle, so other outputs are not ignored when halt is 1), and all the other pins are not required to be labelled. Dumped instructions for verification will be loaded into the ROM component automatically.
 
 #### CLI
 
@@ -36,10 +36,10 @@ This shows extra options of the CLI tool.
 import sys
 from judge import Judge
 
-judge = Judge('../logisim-generic-2.7.1.jar')
+judge = Judge('./logisim-generic-2.7.1.jar')
 try:
     judge('p3.circ', 'mips1.asm')
-except Judge.VerificationFailed as e:
+except Judge.VerificationFailed as e: # no need to catch this generally
     print('failed qwq:', e, file=sys.stderr)
     sys.exit(1)
 ```
