@@ -37,7 +37,7 @@ class LogLine:
         self.s = ''.join(line.split())
         for ch in self.s:
             if ch not in ('0', '1'):
-                raise ValueError('Bad output: ' + line)
+                raise ValueError('found ' + ch)
         self.p = 0
 
     def take(self, n, by_word=False):
@@ -98,8 +98,8 @@ def gen_cpu(circ_path, prog_hex_fn, ifu_circ_name):
         ins = to_instr(s)
         if ins:
             instrs.append(ins)
-            if len(instrs) > max_ins_cnt:
-                raise ValueError('too many instructions for rom addr width ' + str(addr_width))
+    if len(instrs) > max_ins_cnt:
+        raise ValueError('too many instructions ({}) for rom addr width {}'.format(len(instrs), addr_width))
 
     while instrs and instrs[-1] == '0':
         instrs.pop()
@@ -122,6 +122,9 @@ def gen_cpu(circ_path, prog_hex_fn, ifu_circ_name):
 class Judge:
 
     class VerificationFailed(Exception):
+        pass
+
+    class IllegalCircuit(VerificationFailed):
         pass
 
     def __init__(self, logisim_path, mars_path=mars_path_default,
@@ -164,8 +167,8 @@ class Judge:
                     self.pc_width, self.pc_by_word, self.pc_start,
                     self.dma_width, self.dma_by_word
                 )
-            except ValueError:
-                raise Judge.VerificationFailed('invalid circuit output: ' + s)
+            except ValueError as e:
+                raise Judge.VerificationFailed('invalid circuit output ({}): {}'.format(e, s)) from e
             if r:
                 fp.write(r + '\n')
 
@@ -195,7 +198,10 @@ class Judge:
             'MARS simulation timed out (> {} secs), maybe an infinite loop, see ' + ans_fn, 'MARS'
         )
 
-        circ_path = gen_cpu(circ_path, hex_fn, ifu_circ_name)
+        try:
+            circ_path = gen_cpu(circ_path, hex_fn, ifu_circ_name)
+        except ValueError as e:
+            raise Judge.IllegalCircuit(e) from e
         out_fn = os.path.join(tmp_pre, os.path.basename(asm_path) + '.out')
         self._call([self.java_path, '-jar', self.logisim_path, circ_path, '-tty', 'table'],
             out_fn, self._logisim_communicate, logisim_timeout,
