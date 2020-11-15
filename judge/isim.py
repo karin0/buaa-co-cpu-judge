@@ -1,11 +1,11 @@
 import os, os.path
 
-from .base import BaseJudge, VerificationFailed, create_tmp, mars_path_default, tmp_pre, diff_path_default, \
-    mars_timeout_default
+from .base import \
+    BaseJudge, VerificationFailed, create_tmp, mars_path_default, tmp_pre, diff_path_default, mars_timeout_default
 
 tb_timeout_default = 5
 pc_start_default = 0x3000
-duration_default = '100 us'
+duration_default = '1000 us'
 
 
 class ISimJudge(BaseJudge):
@@ -23,7 +23,7 @@ class ISimJudge(BaseJudge):
 
         self.tcl_path = os.path.abspath(os.path.join(tmp_pre, 'cmd.tcl'))
         with open(self.tcl_path, 'w', encoding='utf-8') as fp:
-            fp.write('run ' + duration)
+            fp.write('run {}\nexit'.format(duration))
 
         ise = ise_path if os.path.isdir(os.path.join(ise_path, 'bin')) else os.path.join(ise_path, 'ISE')
         bin = os.path.join(ise, 'bin')
@@ -57,6 +57,6 @@ class ISimJudge(BaseJudge):
                           out_fn, self._parse, tb_timeout,
                           'see ' + out_fn, 'ISim',
                           error_msg='maybe ISE path is incorrect ({})'.format(self.ise_path),
-                          cwd=tb_dir, env=self.env
+                          cwd=tb_dir, env=self.env, nt_kill=True
                           )
         self.diff(out_fn, ans_fn)

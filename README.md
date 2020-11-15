@@ -13,7 +13,7 @@ Set up the output pins in your `main` circuit in order of PC (32-bit by default)
 
 ### Verilog
 
-Your test bench should provide clocks and drive the CPU. At runtime, it should `$readmemh` from `code.txt` into IM and `$display` writing accesses in the same format as the course requires. After the entire program finishes, it should call `$finish()` to halt. Simulate the test bench in ISim manually for once to ensure the test bench executable is generated in your ISE project directory.
+Your test bench should provide clocks and drive the CPU. At runtime, it should `$readmemh` from `code.txt` into IM and `$display` writing accesses in the same format as the course requires. Simulate the test bench in ISim manually for once to ensure the compiled test bench executable is generated in your ISE project directory.
 
 ## Usage
 
@@ -49,7 +49,7 @@ $ python isim-judge.py --help
 
 - `LogisimJudge.__call__(circ_path, asm_path, ifu_circ_name=None, logisim_timeout=3, mars_timeout=3)`
 
-- `class ISimJudge(ise_path, mars_path='kits/Mars_Changed.jar', java_path='java', diff_path='fc' if os.name == 'nt' else 'diff', duration='100 us', pc_start=0x3000)`
+- `class ISimJudge(ise_path, mars_path='kits/Mars_Changed.jar', java_path='java', diff_path='fc' if os.name == 'nt' else 'diff', duration='1000 us', pc_start=0x3000)`
 
 - `ISimJudge.__call__(tb_path, asm_path, tb_timeout=5, mars_timeout=3)`
 

@@ -13,8 +13,8 @@ class VerificationFailed(Exception):
 
 
 def _communicate_callback(proc, fp, handler, timeout=None):
-    for line in proc.communicate(timeout=timeout)[0].splitlines():
-        r = handler(line.decode().strip())
+    for line in proc.communicate(timeout=timeout)[0].decode(errors='ignore').splitlines():
+        r = handler(line.strip())
         if r:
             fp.write(r + '\n')
 
@@ -32,13 +32,15 @@ def create_tmp():
 class BaseJudge:
 
     @staticmethod
-    def _communicate(cmd, out_fn, handler, timeout, timeout_msg, error_meta, error_msg=None, cwd=None, env=None):
+    def _communicate(cmd, out_fn, handler, timeout, timeout_msg, error_meta, error_msg=None, cwd=None, env=None, nt_kill=False):
         with open(out_fn, 'w', encoding='utf-8') as fp:
             with subprocess.Popen(cmd, stdout=subprocess.PIPE, cwd=cwd, env=env) as proc:
                 try:
                     _communicate_callback(proc, fp, handler, timeout)
                 except subprocess.TimeoutExpired as e:
                     proc.kill()
+                    if nt_kill and os.name == 'nt':
+                        subprocess.run(['taskkill', '/f', '/im', os.path.basename(cmd[0])])
                     raise VerificationFailed('{} timed out after {} secs'.format(error_meta, timeout)
                                              + ((', ' + timeout_msg) if timeout_msg else '')) from e
             if proc.returncode:
@@ -60,7 +62,7 @@ class BaseJudge:
 
         mips = self.mips if hasattr(self, 'mips') else None
         self._communicate([self.java_path, '-jar', self.mars_path, asm_path,
-                           'a' if mips else '', 'nc', 'db' if db else '', 'mc', 'CompactDataAtZero', 'dump', '.text',
+                           'nc', 'db' if db else '', 'mc', 'CompactDataAtZero', 'dump', '.text',
                            'HexText', hex_path],
                           ans_path, self._mars_parse, timeout,
                           'maybe an infinite loop, see ' + ans_path, 'MARS'
