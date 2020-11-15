@@ -1,20 +1,22 @@
 import os, os.path
 
-from .base import BaseJudge, VerificationFailed, create_tmp, mars_path_default, tmp_pre, diff_path_default, mars_timeout_default
+from .base import BaseJudge, VerificationFailed, create_tmp, mars_path_default, tmp_pre, diff_path_default, \
+    mars_timeout_default
 
 tb_timeout_default = 5
 pc_start_default = 0x3000
 duration_default = '100 us'
 
+
 class ISimJudge(BaseJudge):
 
     def __init__(self, ise_path,
-        mars_path=mars_path_default,
-        java_path='java',
-        diff_path=diff_path_default,
-        duration=duration_default,
-        pc_start=pc_start_default
-        ):
+                 mars_path=mars_path_default,
+                 java_path='java',
+                 diff_path=diff_path_default,
+                 duration=duration_default,
+                 pc_start=pc_start_default
+                 ):
         create_tmp()
         self.ise_path = ise_path
         self.pc_start = pc_start
@@ -44,17 +46,17 @@ class ISimJudge(BaseJudge):
             return s
 
     def __call__(self, tb_path, asm_path,
-        tb_timeout=tb_timeout_default,
-        mars_timeout=mars_timeout_default,
-        ):
+                 tb_timeout=tb_timeout_default,
+                 mars_timeout=mars_timeout_default,
+                 ):
         tb_dir = os.path.dirname(tb_path)
         _, ans_fn, fix = self.call_mars(asm_path, mars_timeout, os.path.join(tb_dir, 'code.txt'))
 
         out_fn = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.out')
         self._communicate([tb_path, '-tclbatch', self.tcl_path],
-            out_fn, self._parse, tb_timeout,
-            'see ' + out_fn, 'ISim',
-            error_msg='maybe ISE path is incorrect ({})'.format(self.ise_path),
-            cwd=tb_dir, env=self.env
-        )
+                          out_fn, self._parse, tb_timeout,
+                          'see ' + out_fn, 'ISim',
+                          error_msg='maybe ISE path is incorrect ({})'.format(self.ise_path),
+                          cwd=tb_dir, env=self.env
+                          )
         self.diff(out_fn, ans_fn)

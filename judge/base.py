@@ -7,8 +7,10 @@ diff_path_default = 'fc' if os.name == 'nt' else 'diff'
 mars_path_default = os.path.join(os.path.dirname(__file__), 'kits', 'Mars_Changed.jar')
 mars_timeout_default = 3
 
+
 class VerificationFailed(Exception):
     pass
+
 
 def _communicate_callback(proc, fp, handler, timeout=None):
     for line in proc.communicate(timeout=timeout)[0].splitlines():
@@ -16,13 +18,16 @@ def _communicate_callback(proc, fp, handler, timeout=None):
         if r:
             fp.write(r + '\n')
 
+
 def hash_file(fn):
     with open(fn, 'rb') as fp:
         return md5(fp.read()).hexdigest()[:10]
 
+
 def create_tmp():
     if not os.path.isdir(tmp_pre):
         os.mkdir(tmp_pre)
+
 
 class BaseJudge:
 
@@ -35,10 +40,10 @@ class BaseJudge:
                 except subprocess.TimeoutExpired as e:
                     proc.kill()
                     raise VerificationFailed('{} timed out after {} secs'.format(error_meta, timeout)
-                        + ((', ' + timeout_msg) if timeout_msg else '')) from e
+                                             + ((', ' + timeout_msg) if timeout_msg else '')) from e
             if proc.returncode:
                 raise VerificationFailed(error_meta + ' subprocess returned ' + str(proc.returncode)
-                    + ((', ' + error_msg) if error_msg else ''))
+                                         + ((', ' + error_msg) if error_msg else ''))
 
     @staticmethod
     def _mars_parse(s):
@@ -55,10 +60,11 @@ class BaseJudge:
 
         mips = self.mips if hasattr(self, 'mips') else None
         self._communicate([self.java_path, '-jar', self.mars_path, asm_path,
-                'a' if mips else '', 'nc', 'db' if db else '', 'mc', 'CompactDataAtZero', 'dump', '.text', 'HexText', hex_path],
-            ans_path, self._mars_parse, timeout,
-            'maybe an infinite loop, see ' + ans_path, 'MARS'
-        )
+                           'a' if mips else '', 'nc', 'db' if db else '', 'mc', 'CompactDataAtZero', 'dump', '.text',
+                           'HexText', hex_path],
+                          ans_path, self._mars_parse, timeout,
+                          'maybe an infinite loop, see ' + ans_path, 'MARS'
+                          )
 
         if mips:
             with open(hex_path, 'r', encoding='utf-8') as fp:
