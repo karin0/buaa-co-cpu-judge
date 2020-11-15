@@ -13,7 +13,7 @@ Set up the output pins in your `main` circuit in order of PC (32-bit by default)
 
 ### Verilog
 
-Your test bench should provide clocks and drive the CPU. At runtime, it should `$readmemh` from `code.txt` into IM and `$display` writing accesses in the same format as the course requires. After the entire program finishes, it should call `$finish()` to halt. Simulate the test bench in ISim manually for once to generate the ISim test bench executable in your ISE project directory.
+Your test bench should provide clocks and drive the CPU. At runtime, it should `$readmemh` from `code.txt` into IM and `$display` writing accesses in the same format as the course requires. After the entire program finishes, it should call `$finish()` to halt. Simulate the test bench in ISim manually for once to ensure the test bench executable is generated in your ISE project directory.
 
 ## Usage
 
