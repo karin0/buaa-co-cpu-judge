@@ -14,12 +14,14 @@ class ISimJudge(BaseJudge):
                  mars_path=mars_path_default,
                  java_path='java',
                  diff_path=diff_path_default,
+                 db=False,
                  duration=duration_default,
                  pc_start=pc_start_default
                  ):
         create_tmp()
         self.ise_path = ise_path
         self.pc_start = pc_start
+        self.db = db
 
         self.tcl_path = os.path.abspath(os.path.join(tmp_pre, 'cmd.tcl'))
         with open(self.tcl_path, 'w', encoding='utf-8') as fp:
@@ -50,7 +52,7 @@ class ISimJudge(BaseJudge):
                  mars_timeout=mars_timeout_default,
                  ):
         tb_dir = os.path.dirname(tb_path)
-        _, ans_fn, fix = self.call_mars(asm_path, mars_timeout, os.path.join(tb_dir, 'code.txt'))
+        _, ans_fn, fix = self.call_mars(asm_path, mars_timeout, os.path.join(tb_dir, 'code.txt'), db=self.db)
 
         out_fn = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.out')
         self._communicate([tb_path, '-tclbatch', self.tcl_path],

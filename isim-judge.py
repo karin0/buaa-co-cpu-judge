@@ -22,6 +22,8 @@ if __name__ == '__main__':
     parser.add_argument('--pc_start', metavar='addr', type=int,
                         default=str(pc_start_default),
                         help='starting address of PC, {} by default'.format(hex(pc_start_default)))
+    parser.add_argument('--db', action='store_true',
+                        help='specify this to enable delayed branching')
     parser.add_argument('--duration', metavar='time',
                         default=duration_default,
                         help='duration for ISim simulation, "{}" by default'.format(duration_default))
@@ -33,7 +35,7 @@ if __name__ == '__main__':
                         help='timeout for MARS simulation, {} by default'.format(mars_timeout_default))
 
     args = parser.parse_args()
-    judge = ISimJudge(args.ise_path, args.mars_path, args.java_path, args.diff_path,
+    judge = ISimJudge(args.ise_path, args.mars_path, args.java_path, args.diff_path, args.db,
                       args.duration, args.pc_start)
     try:
         judge(args.tb_path, args.asm_path, args.tb_timeout, args.mars_timeout)

@@ -54,13 +54,15 @@ class BaseJudge:
         if s.startswith('@'):
             return s
 
+    def attach(self, mips):
+        self.mips = mips
+
     def call_mars(self, asm_path, timeout, hex_path=None, db=False):
         fix = '-' + hash_file(asm_path)
         if hex_path is None:
             hex_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.hex')
         ans_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.ans')
 
-        mips = self.mips if hasattr(self, 'mips') else None
         self._communicate([self.java_path, '-jar', self.mars_path, asm_path,
                            'nc', 'db' if db else '', 'mc', 'CompactDataAtZero', 'dump', '.text',
                            'HexText', hex_path],
@@ -68,10 +70,10 @@ class BaseJudge:
                           'maybe an infinite loop, see ' + ans_path, 'MARS'
                           )
 
-        if mips:
+        if hasattr(self, 'mips'):
             with open(hex_path, 'r', encoding='utf-8') as fp:
                 r = fp.read()
-            r = mips(r, self.pc_start)
+            r = self.mips(r, self.pc_start)
             with open(ans_path, 'w', encoding='utf-8') as fp:
                 fp.write(r)
 
