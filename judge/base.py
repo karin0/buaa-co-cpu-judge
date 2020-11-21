@@ -29,10 +29,15 @@ def create_tmp():
         os.mkdir(tmp_pre)
 
 
+class MARSError(VerificationFailed):
+    pass
+
+
 class BaseJudge:
 
     @staticmethod
-    def _communicate(cmd, out_fn, handler, timeout, timeout_msg, error_meta, error_msg=None, cwd=None, env=None, nt_kill=False):
+    def _communicate(cmd, out_fn, handler, timeout, timeout_msg, error_meta, error_msg=None, cwd=None, env=None,
+                     nt_kill=False):
         with open(out_fn, 'w', encoding='utf-8') as fp:
             with subprocess.Popen(cmd, stdout=subprocess.PIPE, cwd=cwd, env=env) as proc:
                 try:
@@ -41,16 +46,16 @@ class BaseJudge:
                     proc.kill()
                     if nt_kill and os.name == 'nt':
                         subprocess.run(['taskkill', '/f', '/im', os.path.basename(cmd[0])])
-                    raise VerificationFailed('{} timed out after {} secs'.format(error_meta, timeout)
-                                             + ((', ' + timeout_msg) if timeout_msg else '')) from e
+                    raise MARSError('{} timed out after {} secs'.format(error_meta, timeout)
+                                    + ((', ' + timeout_msg) if timeout_msg else '')) from e
             if proc.returncode:
-                raise VerificationFailed(error_meta + ' subprocess returned ' + str(proc.returncode)
+                raise MARSError(error_meta + ' subprocess returned ' + str(proc.returncode)
                                          + ((', ' + error_msg) if error_msg else ''))
 
     @staticmethod
     def _mars_parse(s):
         if 'error' in s.lower():
-            raise VerificationFailed('MARS reported ' + s)
+            raise MARSError('MARS reported ' + s)
         if s.startswith('@'):
             return s
 
@@ -73,7 +78,7 @@ class BaseJudge:
         if hasattr(self, 'mips'):
             with open(hex_path, 'r', encoding='utf-8') as fp:
                 r = fp.read()
-            r = self.mips(r, self.pc_start)
+            r = self.mips(r, pc_start=self.pc_start, db=db)
             with open(ans_path, 'w', encoding='utf-8') as fp:
                 fp.write(r)
 

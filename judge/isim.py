@@ -44,8 +44,9 @@ class ISimJudge(BaseJudge):
     def _parse(s):
         if 'error' in s.lower():
             raise VerificationFailed('ISim reported ' + s)
-        if s.startswith('@'):
-            return s
+        p = s.find('@')
+        if p >= 0:
+            return s[p:]
 
     def __call__(self, tb_path, asm_path,
                  tb_timeout=tb_timeout_default,
