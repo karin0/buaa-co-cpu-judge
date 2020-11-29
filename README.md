@@ -40,6 +40,11 @@ $ python isim-judge.py ise-projects/mips/tb_isim_beh.exe test.asm "C:\Xilinx\14.
 ```
 
 ```shell
+$ python isim-judge.py ise-projects/mips5/tb_isim_beh.exe test.asm "C:\Xilinx\14.7\ISE_DS" --db
+```
+This enables delayed branching when calling MARS.
+
+```shell
 $ python isim-judge.py --help
 ```
 
@@ -70,3 +75,7 @@ except VerificationFailed as e:
     print('failed qwq:', e, file=sys.stderr)
     sys.exit(1)
 ```
+
+## Known issues
+
+- ISim subprocess may crash when the path to the working directory contains Unicode characters
