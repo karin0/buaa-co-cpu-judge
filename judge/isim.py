@@ -1,9 +1,9 @@
-import os, sys, multiprocessing, threading, traceback, _thread
-import subprocess
+import os, sys, multiprocessing, threading, traceback
 from queue import Queue, Empty
 
 from .base import \
     BaseJudge, VerificationFailed, mars_path_default, tmp_pre, diff_path_default, mars_timeout_default, hash_file
+from .atomic import Set
 
 tb_timeout_default = 5
 pc_start_default = 0x3000
@@ -11,24 +11,6 @@ duration_default = '1000 us'
 
 tcl_common_fn = 'judge.cmd'
 hex_common_fn = 'code.txt'
-
-
-class AtomicSet:
-    def __init__(self):
-        self.data = set()
-        self.mutex = threading.Lock()
-
-    def add(self, k):
-        with self.mutex:
-            self.data.add(k)
-
-    def remove(self, k):
-        with self.mutex:
-            self.data.remove(k)
-
-    def __contains__(self, k):
-        with self.mutex:
-            return k in self.data
 
 
 class PropagatingThread(threading.Thread):
@@ -134,17 +116,19 @@ class ISimJudge(BaseJudge):
     def all(self, asm_paths, fn_wire,
             tb_timeout=tb_timeout_default,
             mars_timeout=mars_timeout_default,
-            workers_num=None
+            workers_num=None,
+            on_success=None,
+            on_error=None
             ):
         if workers_num is None:
-            workers_num = multiprocessing.cpu_count()
+            workers_num = max(multiprocessing.cpu_count() - 1, 2)
 
         q = Queue()
         for path in asm_paths:
             q.put_nowait(path)
 
         workers = []
-        identifiers = AtomicSet()
+        identifiers = Set()
 
         def worker(n):
             hex_fn = 'case{:04d}'.format(n)
@@ -152,17 +136,20 @@ class ISimJudge(BaseJudge):
             hex_path = os.path.join(self.tb_dir, hex_fn)
             tcl_path = os.path.join(self.tb_dir, tcl_fn)
 
-            force = 'isim force add {} {} -radix hex\n'.format(fn_wire, bytes(hex_fn, encoding='utf-8').hex())
-            self._generate_tcl(
-                tcl_path,
-                force + self.tcl_common_text
-            )
-            while True:
-                try:
-                    asm_path = q.get_nowait()
-                except Empty:
-                    return
+            force = 'isim force add {} {} -radix hex\ninit\n'.format(fn_wire, bytes(hex_fn, encoding='utf-8').hex())
+            tcl = force + self.tcl_common_text
+            self._generate_tcl(tcl_path, tcl)
 
+            asm_path = None
+            retrying = False
+            while True:
+                if not retrying:
+                    try:
+                        asm_path = q.get_nowait()
+                    except Empty:
+                        return
+
+                retrying = False
                 try:
                     self(asm_path,
                          tb_timeout=tb_timeout,
@@ -171,13 +158,23 @@ class ISimJudge(BaseJudge):
                          _hex_path=hex_path,
                          _ongoing_identifiers=identifiers
                          )
-                except:
+                except BaseException as e:
+                    if isinstance(e, VerificationFailed):
+                        se = str(e)
+                        if 'tmp_save' in se and 'for write' in se:  # this happens to isim occasionally
+                            retrying = True
+                            print('Retrying', asm_path, 'as', se)
+                            continue
+
                     traceback.print_exc()
-                    if os.name == 'nt':
-                        subprocess.run(['taskkill', '/f', '/pid', str(os.getpid())])
+                    if on_error and on_error(asm_path):
+                        return
+                else:
+                    if on_success:
+                        on_success(asm_path)
 
         for i in range(workers_num):
-            t = PropagatingThread(target=worker, args=(i,), daemon=True)
+            t = PropagatingThread(target=worker, args=(i, ), daemon=True)
             t.start()
             workers.append(t)
 

@@ -44,6 +44,7 @@ class BaseJudge:
                     _communicate_callback(proc, fp, handler, timeout)
                 except subprocess.TimeoutExpired as e:
                     proc.kill()
+                    _communicate_callback(proc, fp, handler)
                     if nt_kill and os.name == 'nt':
                         im = cmd[0]
                         if not os.path.splitext(im)[1]:
@@ -83,8 +84,12 @@ class BaseJudge:
     def diff(self, out_path, ans_path):
         with subprocess.Popen([self.diff_path, out_path, ans_path],
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+            res = proc.communicate()
             if proc.returncode:
-                res = proc.communicate()
-                res = res[0].decode(errors='ignore') + res[1].decode(errors='ignore')
-                print(res, file=sys.stderr)
-                raise VerificationFailed('output differs, see {} and {}'.format(out_path, ans_path))
+                log_path = out_path + '.diff'
+                with open(log_path, 'wb') as fp:
+                    fp.write(res[0] + b'\n' + res[1])
+                # res = res[0].decode(errors='ignore') + res[1].decode(errors='ignore')
+                # print(res, file=sys.stderr)
+                raise VerificationFailed('output differs, see {}, {}, and {} for diff logs'.format(out_path, ans_path,
+                                                                                                   log_path))
