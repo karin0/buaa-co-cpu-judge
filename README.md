@@ -54,9 +54,9 @@ $ python isim-judge.py --help
 
 - `LogisimJudge.__call__(circ_path, asm_path, ifu_circ_name=None, logisim_timeout=3, mars_timeout=3)`
 
-- `class ISimJudge(ise_path, mars_path='kits/Mars_Changed.jar', java_path='java', diff_path='fc' if os.name == 'nt' else 'diff', db=False, duration='1000 us', pc_start=0x3000)`
+- `class ISimJudge(tb_path, ise_path, mars_path='kits/Mars_Changed.jar', java_path='java', diff_path='fc' if os.name == 'nt' else 'diff', db=False, duration='1000 us', pc_start=0x3000)`
 
-- `ISimJudge.__call__(tb_path, asm_path, tb_timeout=5, mars_timeout=3)`
+- `ISimJudge.__call__(asm_path, tb_timeout=5, mars_timeout=3)`
 
 - `class VerificationFailed(Exception)`
 
@@ -66,11 +66,11 @@ $ python isim-judge.py --help
 import sys
 from judge import LogisimJudge, ISimJudge, VerificationFailed
 
-judge_l = LogisimJudge('kits/logisim-generic-2.7.1.jar')
-judge_v = ISimJudge(r'C:\Xilinx\14.7\ISE_DS')
+judge1 = LogisimJudge('kits/logisim-generic-2.7.1.jar')
+judge2 = ISimJudge('ise-projects/mips/tb_isim_beh.exe', r'C:\Xilinx\14.7\ISE_DS')
 try:
-    judge_l('p3.circ', 'mips1.asm')
-    judge_v('ise-projects/mips/tb_isim_beh.exe', 'mips1.asm')
+    judge1('p3.circ', 'mips1.asm')
+    judge2('mips1.asm')
 except VerificationFailed as e:
     print('failed qwq:', e, file=sys.stderr)
     sys.exit(1)
@@ -78,4 +78,4 @@ except VerificationFailed as e:
 
 ## Known issues
 
-- ISim subprocess may crash when the path to the working directory contains Unicode characters
+- ~~ISim subprocess may crash when the path to the working directory contains Unicode characters~~

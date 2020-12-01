@@ -1,8 +1,7 @@
 import os, os.path, string
 import xml.etree.ElementTree as ET
 
-from .base import BaseJudge, VerificationFailed, tmp_pre, diff_path_default, mars_path_default, create_tmp, \
-    mars_timeout_default
+from .base import BaseJudge, VerificationFailed, hash_file, tmp_pre, mars_path_default, mars_timeout_default
 
 diff_path_default = 'fc' if os.name == 'nt' else 'diff'
 
@@ -136,7 +135,7 @@ class LogisimJudge(BaseJudge):
                  dma_width=dma_width_default,
                  dma_by_word=dma_by_word_default,
                  ):
-        create_tmp()
+        super().__init__()
 
         self.logisim_path = logisim_path
         self.mars_path = mars_path
@@ -164,16 +163,20 @@ class LogisimJudge(BaseJudge):
                  logisim_timeout=logisim_timeout_default,
                  mars_timeout=mars_timeout_default
                  ):
-        hex_fn, ans_fn, fix = self.call_mars(asm_path, mars_timeout)
+
+        fix = '-' + hash_file(asm_path)
+        hex_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.hex')
+        ans_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.ans')
+        self.call_mars(asm_path, hex_path, ans_path, mars_timeout)
 
         try:
-            circ_path = gen_cpu(circ_path, hex_fn, ifu_circ_name, fix)
+            circ_path = gen_cpu(circ_path, hex_path, ifu_circ_name, fix)
         except ValueError as e:
             raise self.IllegalCircuit(e) from e
-        out_fn = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.out')
+        out_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.out')
         self._communicate([self.java_path, '-jar', self.logisim_path, circ_path, '-tty', 'table'],
-                          out_fn, self._parse, logisim_timeout,
-                          'maybe halt is incorrect, see ' + out_fn, 'Logisim'
+                          out_path, self._parse, logisim_timeout,
+                          'maybe halt is incorrect, see ' + out_path, 'Logisim'
                           )
 
-        self.diff(out_fn, ans_fn)
+        self.diff(out_path, ans_path)

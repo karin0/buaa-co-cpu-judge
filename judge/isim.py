@@ -1,16 +1,54 @@
-import os, os.path
+import os, sys, multiprocessing, threading, traceback, _thread
+import subprocess
+from queue import Queue, Empty
 
 from .base import \
-    BaseJudge, VerificationFailed, create_tmp, mars_path_default, tmp_pre, diff_path_default, mars_timeout_default
+    BaseJudge, VerificationFailed, mars_path_default, tmp_pre, diff_path_default, mars_timeout_default, hash_file
 
 tb_timeout_default = 5
 pc_start_default = 0x3000
 duration_default = '1000 us'
 
+tcl_common_fn = 'judge.cmd'
+hex_common_fn = 'code.txt'
+
+
+class AtomicSet:
+    def __init__(self):
+        self.data = set()
+        self.mutex = threading.Lock()
+
+    def add(self, k):
+        with self.mutex:
+            self.data.add(k)
+
+    def remove(self, k):
+        with self.mutex:
+            self.data.remove(k)
+
+    def __contains__(self, k):
+        with self.mutex:
+            return k in self.data
+
+
+class PropagatingThread(threading.Thread):
+    def run(self):
+        self.exc = None
+        try:
+            self.ret = self._target(*self._args, **self._kwargs)
+        except BaseException as e:
+            self.exc = e
+
+    def join(self):
+        super(PropagatingThread, self).join()
+        if self.exc:
+            raise self.exc
+        return self.ret
+
 
 class ISimJudge(BaseJudge):
 
-    def __init__(self, ise_path,
+    def __init__(self, tb_path, ise_path,
                  mars_path=mars_path_default,
                  java_path='java',
                  diff_path=diff_path_default,
@@ -18,14 +56,22 @@ class ISimJudge(BaseJudge):
                  duration=duration_default,
                  pc_start=pc_start_default
                  ):
-        create_tmp()
+        super().__init__()
+
+        self.tb_path = tb_path
         self.ise_path = ise_path
         self.pc_start = pc_start
         self.db = db
 
-        self.tcl_path = os.path.abspath(os.path.join(tmp_pre, 'cmd.tcl'))
-        with open(self.tcl_path, 'w', encoding='utf-8') as fp:
-            fp.write('run {}\nexit'.format(duration))
+        self.mars_path = mars_path
+        self.java_path = java_path
+        self.diff_path = diff_path
+
+        self.tb_dir = tb_dir = os.path.dirname(tb_path)
+        self.tcl_common_path = os.path.join(tb_dir, tcl_common_fn)
+        self.tcl_common_text = 'run {}\nexit\n'.format(duration)
+        self._generate_tcl(self.tcl_common_path, self.tcl_common_text)
+        self.hex_common_path = os.path.join(tb_dir, hex_common_fn)
 
         ise = ise_path if os.path.isdir(os.path.join(ise_path, 'bin')) else os.path.join(ise_path, 'ISE')
         bin = os.path.join(ise, 'bin')
@@ -36,9 +82,11 @@ class ISimJudge(BaseJudge):
 
         self.env = env = dict(os.environ.copy(), XILINX=ise, EXE=exe, XILINX_PLATFORM=platform)
         env['PATH'] = platform_bin + os.pathsep + env['PATH']
-        self.mars_path = mars_path
-        self.java_path = java_path
-        self.diff_path = diff_path
+
+    @staticmethod
+    def _generate_tcl(path, s):
+        with open(path, 'w', encoding='utf-8') as fp:
+            fp.write(s)
 
     @staticmethod
     def _parse(s):
@@ -48,18 +96,90 @@ class ISimJudge(BaseJudge):
         if p >= 0:
             return s[p:]
 
-    def __call__(self, tb_path, asm_path,
+    def __call__(self, asm_path,
                  tb_timeout=tb_timeout_default,
                  mars_timeout=mars_timeout_default,
+                 _tcl_fn=tcl_common_fn,
+                 _hex_path=None,
+                 _ongoing_identifiers=None
                  ):
-        tb_dir = os.path.dirname(tb_path)
-        _, ans_fn, fix = self.call_mars(asm_path, mars_timeout, os.path.join(tb_dir, 'code.txt'), db=self.db)
+        if _hex_path is None:
+            _hex_path = self.hex_common_path
 
-        out_fn = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.out')
-        self._communicate([tb_path, '-tclbatch', self.tcl_path],
-                          out_fn, self._parse, tb_timeout,
-                          'see ' + out_fn, 'ISim',
+        fix = '-' + hash_file(asm_path)
+        identifier = None
+        if _ongoing_identifiers is not None:
+            identifier = os.path.basename(asm_path) + fix
+            if identifier in _ongoing_identifiers:
+                print(asm_path, 'is duplicated and skipped', file=sys.stderr)
+                return
+            _ongoing_identifiers.add(identifier)
+
+        ans_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.ans')
+        self.call_mars(asm_path, _hex_path, ans_path,
+                       timeout=mars_timeout, db=self.db)
+
+        out_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.out')
+        print('Running tb...', flush=True)
+        self._communicate([self.tb_path, '-tclbatch', _tcl_fn],
+                          out_path, self._parse, tb_timeout,
+                          'see ' + out_path, 'ISim',
                           error_msg='maybe ISE path is incorrect ({})'.format(self.ise_path),
-                          cwd=tb_dir, env=self.env, nt_kill=True
+                          cwd=self.tb_dir, env=self.env, nt_kill=True
                           )
-        self.diff(out_fn, ans_fn)
+        self.diff(out_path, ans_path)
+        if identifier:
+            _ongoing_identifiers.remove(identifier)
+
+    def all(self, asm_paths, fn_wire,
+            tb_timeout=tb_timeout_default,
+            mars_timeout=mars_timeout_default,
+            workers_num=None
+            ):
+        if workers_num is None:
+            workers_num = multiprocessing.cpu_count()
+
+        q = Queue()
+        for path in asm_paths:
+            q.put_nowait(path)
+
+        workers = []
+        identifiers = AtomicSet()
+
+        def worker(n):
+            hex_fn = 'case{:04d}'.format(n)
+            tcl_fn = hex_fn + '.cmd'
+            hex_path = os.path.join(self.tb_dir, hex_fn)
+            tcl_path = os.path.join(self.tb_dir, tcl_fn)
+
+            force = 'isim force add {} {} -radix hex\n'.format(fn_wire, bytes(hex_fn, encoding='utf-8').hex())
+            self._generate_tcl(
+                tcl_path,
+                force + self.tcl_common_text
+            )
+            while True:
+                try:
+                    asm_path = q.get_nowait()
+                except Empty:
+                    return
+
+                try:
+                    self(asm_path,
+                         tb_timeout=tb_timeout,
+                         mars_timeout=mars_timeout,
+                         _tcl_fn=tcl_fn,
+                         _hex_path=hex_path,
+                         _ongoing_identifiers=identifiers
+                         )
+                except:
+                    traceback.print_exc()
+                    if os.name == 'nt':
+                        subprocess.run(['taskkill', '/f', '/pid', str(os.getpid())])
+
+        for i in range(workers_num):
+            t = PropagatingThread(target=worker, args=(i,), daemon=True)
+            t.start()
+            workers.append(t)
+
+        for t in workers:
+            t.join()

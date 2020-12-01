@@ -35,10 +35,10 @@ if __name__ == '__main__':
                         help='timeout for MARS simulation, {} by default'.format(mars_timeout_default))
 
     args = parser.parse_args()
-    judge = ISimJudge(args.ise_path, args.mars_path, args.java_path, args.diff_path, args.db,
+    judge = ISimJudge(args.tb_path, args.ise_path, args.mars_path, args.java_path, args.diff_path, args.db,
                       args.duration, args.pc_start)
     try:
-        judge(args.tb_path, args.asm_path, args.tb_timeout, args.mars_timeout)
+        judge(args.asm_path, args.tb_timeout, args.mars_timeout)
     except VerificationFailed as e:
         print(e, file=sys.stderr)
         sys.exit(1)

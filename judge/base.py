@@ -1,4 +1,4 @@
-import os, subprocess
+import os, sys, subprocess
 from hashlib import md5
 
 tmp_pre = 'tmp'
@@ -24,11 +24,6 @@ def hash_file(fn):
         return md5(fp.read()).hexdigest()[:10]
 
 
-def create_tmp():
-    if not os.path.isdir(tmp_pre):
-        os.mkdir(tmp_pre)
-
-
 class MARSError(VerificationFailed):
     pass
 
@@ -36,8 +31,13 @@ class MARSError(VerificationFailed):
 class BaseJudge:
 
     @staticmethod
+    def __init__():
+        if not os.path.isdir(tmp_pre):
+            os.mkdir(tmp_pre)
+
+    @staticmethod
     def _communicate(cmd, out_fn, handler, timeout, timeout_msg, error_meta, error_msg=None, cwd=None, env=None,
-                     nt_kill=False):
+                     nt_kill=True):
         with open(out_fn, 'w', encoding='utf-8') as fp:
             with subprocess.Popen(cmd, stdout=subprocess.PIPE, cwd=cwd, env=env) as proc:
                 try:
@@ -45,12 +45,15 @@ class BaseJudge:
                 except subprocess.TimeoutExpired as e:
                     proc.kill()
                     if nt_kill and os.name == 'nt':
-                        subprocess.run(['taskkill', '/f', '/im', os.path.basename(cmd[0])])
+                        im = cmd[0]
+                        if not os.path.splitext(im)[1]:
+                            im += '.exe'
+                        subprocess.run(['taskkill', '/f', '/im', os.path.basename(im)])
                     raise MARSError('{} timed out after {} secs'.format(error_meta, timeout)
                                     + ((', ' + timeout_msg) if timeout_msg else '')) from e
             if proc.returncode:
                 raise MARSError(error_meta + ' subprocess returned ' + str(proc.returncode)
-                                         + ((', ' + error_msg) if error_msg else ''))
+                                + ((', ' + error_msg) if error_msg else ''))
 
     @staticmethod
     def _mars_parse(s):
@@ -62,12 +65,7 @@ class BaseJudge:
     def attach(self, mips):
         self.mips = mips
 
-    def call_mars(self, asm_path, timeout, hex_path=None, db=False):
-        fix = '-' + hash_file(asm_path)
-        if hex_path is None:
-            hex_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.hex')
-        ans_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.ans')
-
+    def call_mars(self, asm_path, hex_path, ans_path, timeout=mars_timeout_default, db=False):
         self._communicate([self.java_path, '-jar', self.mars_path, asm_path,
                            'nc', 'db' if db else '', 'mc', 'CompactDataAtZero', 'dump', '.text',
                            'HexText', hex_path],
@@ -82,8 +80,11 @@ class BaseJudge:
             with open(ans_path, 'w', encoding='utf-8') as fp:
                 fp.write(r)
 
-        return hex_path, ans_path, fix
-
     def diff(self, out_path, ans_path):
-        if subprocess.run([self.diff_path, out_path, ans_path]).returncode:
-            raise VerificationFailed('output differs, see {} and {}'.format(out_path, ans_path))
+        with subprocess.Popen([self.diff_path, out_path, ans_path],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+            if proc.returncode:
+                res = proc.communicate()
+                res = res[0].decode(errors='ignore') + res[1].decode(errors='ignore')
+                print(res, file=sys.stderr)
+                raise VerificationFailed('output differs, see {} and {}'.format(out_path, ans_path))
