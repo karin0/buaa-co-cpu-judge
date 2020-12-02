@@ -88,45 +88,41 @@ class ISimJudge(BaseJudge):
                  keep_output_files=False,
                  _tcl_fn=tcl_common_fn,
                  _hex_path=None,
-                 _ongoing_identifiers=None
+                 _used_identifiers=None
                  ):
         if _hex_path is None:
             _hex_path = self.hex_common_path
 
         identifier = os.path.basename(asm_path)
 
-        if _ongoing_identifiers is not None:
-            with _ongoing_identifiers:
-                if identifier in _ongoing_identifiers:
+        if _used_identifiers is not None:
+            with _used_identifiers:
+                if identifier in _used_identifiers:
                     print('Renaming output filename for', asm_path, 'due to the duplicated filename', file=sys.stderr)
                     identifier += '-' + hash_file(asm_path)
-                    if identifier in _ongoing_identifiers:
+                    if identifier in _used_identifiers:
                         print('Renaming output filename for', asm_path, 'due to the duplicated content',
                               file=sys.stderr)
                         identifier += '-' + str(randint(10000, 99999))
-                        if identifier in _ongoing_identifiers:
+                        if identifier in _used_identifiers:
                             raise VerificationFailed('Unresolvable naming conflicts for ' + asm_path)
-                _ongoing_identifiers.add(identifier)
+                _used_identifiers.add(identifier)
 
-        try:
-            ans_path = os.path.join(tmp_pre, identifier + '.ans')
-            self.call_mars(asm_path, _hex_path, ans_path,
-                           timeout=mars_timeout)
+        ans_path = os.path.join(tmp_pre, identifier + '.ans')
+        self.call_mars(asm_path, _hex_path, ans_path,
+                       timeout=mars_timeout)
 
-            out_path = os.path.join(tmp_pre, identifier + '.out')
-            print('Running simulation for', asm_path, '...', flush=True)
-            self._communicate([self.tb_path, '-tclbatch', _tcl_fn],
-                              out_path, self._parse, tb_timeout,
-                              'see ' + out_path, 'ISim',
-                              error_msg='maybe ISE path is incorrect ({})'.format(self.ise_path),
-                              cwd=self.tb_dir, env=self.env, nt_kill=True
-                              )
-            self.diff(out_path, ans_path,
-                      log_path=os.path.join(tmp_pre, identifier + '.diff'),
-                      keep=keep_output_files)
-        finally:
-            if _ongoing_identifiers:
-                _ongoing_identifiers.remove(identifier)
+        out_path = os.path.join(tmp_pre, identifier + '.out')
+        print('Running simulation for', asm_path, '...', flush=True)
+        self._communicate([self.tb_path, '-tclbatch', _tcl_fn],
+                          out_path, self._parse, tb_timeout,
+                          'see ' + out_path, 'ISim',
+                          error_msg='maybe ISE path is incorrect ({})'.format(self.ise_path),
+                          cwd=self.tb_dir, env=self.env, nt_kill=True
+                          )
+        self.diff(out_path, ans_path,
+                  log_path=os.path.join(tmp_pre, identifier + '.diff'),
+                  keep=keep_output_files)
 
     def all(self, asm_paths, fn_wire,
             tb_timeout=tb_timeout_default,
@@ -194,7 +190,7 @@ class ISimJudge(BaseJudge):
                          keep_output_files=keep_output_files,
                          _tcl_fn=tcl_fn,
                          _hex_path=hex_path,
-                         _ongoing_identifiers=identifiers
+                         _used_identifiers=identifiers
                          )
                 except BaseException as e:
                     if isinstance(e, VerificationFailed):
