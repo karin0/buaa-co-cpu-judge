@@ -54,7 +54,7 @@ $ python isim-judge.py --help
 
 - `LogisimJudge.__call__(circ_path, asm_path, ifu_circ_name=None, logisim_timeout=3, mars_timeout=3)`
 
-- `class ISimJudge(tb_path, ise_path, mars_path='kits/Mars_Changed.jar', java_path='java', diff_path='fc' if os.name == 'nt' else 'diff', db=False, duration='1000 us', pc_start=0x3000)`
+- `class ISimJudge(tb_path, ise_path, mars_path='kits/Mars_Changed.jar', java_path='java', diff_path='fc' if os.name == 'nt' else 'diff', db=False, np=False, duration='1000 us', pc_start=0x3000)`
 
 - `ISimJudge.__call__(asm_path, tb_timeout=5, mars_timeout=3)`
 
@@ -75,7 +75,3 @@ except VerificationFailed as e:
     print('failed qwq:', e, file=sys.stderr)
     sys.exit(1)
 ```
-
-## Known issues
-
-- ~~ISim subprocess may crash when the path to the working directory contains Unicode characters~~
