@@ -56,7 +56,9 @@ $ python isim-judge.py --help
 
 - `class ISimJudge(tb_path, ise_path, mars_path='kits/Mars_Changed.jar', java_path='java', diff_path='fc' if os.name == 'nt' else 'diff', db=False, np=False, duration='1000 us', pc_start=0x3000)`
 
-- `ISimJudge.__call__(asm_path, tb_timeout=5, mars_timeout=3)`
+- `ISimJudge.__call__(asm_path, tb_timeout=5, mars_timeout=3, keep_output_files=False)`
+
+- `ISimJudge.all(asm_paths, fn_wire, tb_timeout=5, mars_timeout=3, keep_output_files=False, workers_num=None, on_success=None, on_error=None, kill_on_error=False, stop_on_error=True)`
 
 - `class VerificationFailed(Exception)`
 
@@ -66,11 +68,12 @@ $ python isim-judge.py --help
 import sys
 from judge import LogisimJudge, ISimJudge, VerificationFailed
 
-judge1 = LogisimJudge('kits/logisim-generic-2.7.1.jar')
-judge2 = ISimJudge('ise-projects/mips/tb_isim_beh.exe', r'C:\Xilinx\14.7\ISE_DS')
+judge3 = LogisimJudge('kits/logisim-generic-2.7.1.jar')
+judge4 = ISimJudge('ise-projects/mips/tb_isim_beh.exe', r'C:\Xilinx\14.7\ISE_DS')
 try:
-    judge1('p3.circ', 'mips1.asm')
-    judge2('mips1.asm')
+    judge3('p3.circ', 'mips1.asm')
+    judge4('mips1.asm')
+    judge4.all(['cases/mips1.asm', 'cases/mips2.asm', 'cases/mips3.asm'], '/uut/ifu/fn')
 except VerificationFailed as e:
     print('failed qwq:', e, file=sys.stderr)
     sys.exit(1)
