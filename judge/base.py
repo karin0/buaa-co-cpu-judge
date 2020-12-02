@@ -75,9 +75,6 @@ class BaseJudge:
         if s.startswith('@'):
             return s
 
-    def attach(self, mips):
-        self.mips = mips
-
     def call_mars(self, asm_path, hex_path, ans_path, timeout=mars_timeout_default):
         self._communicate([self.java_path, '-jar', self.mars_path, asm_path,
                            'nc',
@@ -88,13 +85,6 @@ class BaseJudge:
                           ans_path, self._mars_parse, timeout,
                           'maybe an infinite loop, see ' + ans_path, 'MARS'
                           )
-
-        if hasattr(self, 'mips'):
-            with open(hex_path, 'r', encoding='utf-8') as fp:
-                r = fp.read()
-            r = self.mips(r, pc_start=self.pc_start, db=db)
-            with open(ans_path, 'w', encoding='utf-8') as fp:
-                fp.write(r)
 
     def diff(self, out_path, ans_path, log_path=None, keep=False):
         with subprocess.Popen([self.diff_path, out_path, ans_path],

@@ -108,23 +108,25 @@ class ISimJudge(BaseJudge):
                             raise VerificationFailed('Unresolvable naming conflicts for ' + asm_path)
                 _ongoing_identifiers.add(identifier)
 
-        ans_path = os.path.join(tmp_pre, identifier + '.ans')
-        self.call_mars(asm_path, _hex_path, ans_path,
-                       timeout=mars_timeout)
+        try:
+            ans_path = os.path.join(tmp_pre, identifier + '.ans')
+            self.call_mars(asm_path, _hex_path, ans_path,
+                           timeout=mars_timeout)
 
-        out_path = os.path.join(tmp_pre, identifier + '.out')
-        print('Running simulation for', asm_path, '...', flush=True)
-        self._communicate([self.tb_path, '-tclbatch', _tcl_fn],
-                          out_path, self._parse, tb_timeout,
-                          'see ' + out_path, 'ISim',
-                          error_msg='maybe ISE path is incorrect ({})'.format(self.ise_path),
-                          cwd=self.tb_dir, env=self.env, nt_kill=True
-                          )
-        self.diff(out_path, ans_path,
-                  log_path=os.path.join(tmp_pre, identifier + '.diff'),
-                  keep=keep_output_files)
-        if _ongoing_identifiers:
-            _ongoing_identifiers.remove(identifier)
+            out_path = os.path.join(tmp_pre, identifier + '.out')
+            print('Running simulation for', asm_path, '...', flush=True)
+            self._communicate([self.tb_path, '-tclbatch', _tcl_fn],
+                              out_path, self._parse, tb_timeout,
+                              'see ' + out_path, 'ISim',
+                              error_msg='maybe ISE path is incorrect ({})'.format(self.ise_path),
+                              cwd=self.tb_dir, env=self.env, nt_kill=True
+                              )
+            self.diff(out_path, ans_path,
+                      log_path=os.path.join(tmp_pre, identifier + '.diff'),
+                      keep=keep_output_files)
+        finally:
+            if _ongoing_identifiers:
+                _ongoing_identifiers.remove(identifier)
 
     def all(self, asm_paths, fn_wire,
             tb_timeout=tb_timeout_default,
