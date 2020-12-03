@@ -5,7 +5,7 @@ from queue import Queue, Empty
 from .base import \
     BaseJudge, VerificationFailed, mars_path_default, tmp_pre, kill_pid, diff_path_default, mars_timeout_default, \
     hash_file
-from .atomic import Set, Counter
+from .atomic import Atomic, Counter
 
 tb_timeout_default = 5
 pc_start_default = 0x3000
@@ -32,7 +32,7 @@ class PropagatingThread(threading.Thread):
 
 class ISimJudge(BaseJudge):
 
-    def __init__(self, tb_path, ise_path,
+    def __init__(self, tb_path, ise_path=None,
                  mars_path=mars_path_default,
                  java_path='java',
                  diff_path=diff_path_default,
@@ -44,7 +44,6 @@ class ISimJudge(BaseJudge):
         super().__init__()
 
         self.tb_path = tb_path
-        self.ise_path = ise_path
         self.pc_start = pc_start
         self.db = db
         self.np = np
@@ -59,15 +58,17 @@ class ISimJudge(BaseJudge):
         self._generate_tcl(self.tcl_common_path, self.tcl_common_text)
         self.hex_common_path = os.path.join(tb_dir, hex_common_fn)
 
-        ise = ise_path if os.path.isdir(os.path.join(ise_path, 'bin')) else os.path.join(ise_path, 'ISE')
-        bin = os.path.join(ise, 'bin')
-        platform, exe = (('lin', ''), ('nt', '.exe'))[os.name == 'nt']
-        if os.path.isdir(os.path.join(bin, platform + '64')):
-            platform += '64'
-        platform_bin = os.path.join(bin, platform)
+        self.env = env = os.environ.copy()
+        if ise_path is not None:
+            ise = ise_path if os.path.isdir(os.path.join(ise_path, 'bin')) else os.path.join(ise_path, 'ISE')
+            bin = os.path.join(ise, 'bin')
+            platform = 'nt' if os.name == 'nt' else 'lin'
+            if os.path.isdir(os.path.join(bin, platform + '64')):
+                platform += '64'
+            platform_bin = os.path.join(bin, platform)
 
-        self.env = env = dict(os.environ.copy(), XILINX=ise, EXE=exe, XILINX_PLATFORM=platform)
-        env['PATH'] = platform_bin + os.pathsep + env['PATH']
+            self.env = env = dict(os.environ.copy(), XILINX=ise, XILINX_PLATFORM=platform)
+            env['PATH'] = platform_bin + os.pathsep + env['PATH']
 
     @staticmethod
     def _generate_tcl(path, s):
@@ -77,7 +78,8 @@ class ISimJudge(BaseJudge):
     @staticmethod
     def _parse(s):
         if 'error' in s.lower():
-            raise VerificationFailed('ISim reported ' + s)
+            raise VerificationFailed('ISim complained ' + s)
+
         p = s.find('@')
         if p >= 0:
             return s[p:]
@@ -96,17 +98,17 @@ class ISimJudge(BaseJudge):
         identifier = os.path.basename(asm_path)
 
         if _used_identifiers is not None:
-            with _used_identifiers:
-                if identifier in _used_identifiers:
-                    print('Renaming output filename for', asm_path, 'due to the duplicated filename', file=sys.stderr)
+            with _used_identifiers as s:
+                if identifier in s:
+                    print('Renaming duplicated output filename for', asm_path, file=sys.stderr)
                     identifier += '-' + hash_file(asm_path)
-                    if identifier in _used_identifiers:
-                        print('Renaming output filename for', asm_path, 'due to the duplicated content',
+                    if identifier in s:
+                        print('Renaming duplicated output filename for', asm_path,
                               file=sys.stderr)
                         identifier += '-' + str(randint(10000, 99999))
-                        if identifier in _used_identifiers:
+                        if identifier in s:
                             raise VerificationFailed('Unresolvable naming conflicts for ' + asm_path)
-                _used_identifiers.add(identifier)
+                s.add(identifier)
 
         ans_path = os.path.join(tmp_pre, identifier + '.ans')
         self.call_mars(asm_path, _hex_path, ans_path,
@@ -117,7 +119,7 @@ class ISimJudge(BaseJudge):
         self._communicate([self.tb_path, '-tclbatch', _tcl_fn],
                           out_path, self._parse, tb_timeout,
                           'see ' + out_path, 'ISim',
-                          error_msg='maybe ISE path is incorrect ({})'.format(self.ise_path),
+                          error_msg='maybe ISE path is incorrect',
                           cwd=self.tb_dir, env=self.env, nt_kill=True
                           )
         self.diff(out_path, ans_path,
@@ -142,7 +144,7 @@ class ISimJudge(BaseJudge):
             q.put_nowait(path)
 
         workers = []
-        identifiers = Set()
+        identifiers = Atomic(set())
 
         total = len(asm_paths)
         cnt = Counter()
