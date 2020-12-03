@@ -67,7 +67,8 @@ class ISimJudge(BaseJudge):
                 platform += '64'
             platform_bin = os.path.join(bin, platform)
 
-            self.env = env = dict(os.environ.copy(), XILINX=ise, XILINX_PLATFORM=platform)
+            env['XILINX'] = ise
+            env['XILINX_PLATFORM'] = platform
             env['PATH'] = platform_bin + os.pathsep + env['PATH']
 
     @staticmethod
