@@ -62,16 +62,18 @@ class BaseJudge:
                             im += '.exe'
                         kill_im(os.path.basename(im))
                     _communicate_callback(proc, fp, handler)
-                    raise MARSError('{} timed out after {} secs'.format(error_meta, timeout)
+                    raise RuntimeError('{} timed out after {} secs'.format(error_meta, timeout)
                                     + ((', ' + timeout_msg) if timeout_msg else '')) from e
             if proc.returncode:
-                raise MARSError(error_meta + ' subprocess returned ' + str(proc.returncode)
+                raise RuntimeError(error_meta + ' subprocess returned ' + str(proc.returncode)
                                 + ((', ' + error_msg) if error_msg else ''))
 
     @staticmethod
     def _mars_parse(s):
         if 'error' in s.lower():
             raise MARSError('MARS reported ' + s)
+        if '$ 0' in s:
+            return
         if s.startswith('@'):
             return s
 

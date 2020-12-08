@@ -1,9 +1,9 @@
-import os, sys, multiprocessing, threading
+import os, sys, multiprocessing, threading, glob
 from random import randint
 from queue import Queue, Empty
 
 from .base import \
-    BaseJudge, VerificationFailed, mars_path_default, tmp_pre, kill_pid, diff_path_default, mars_timeout_default, \
+    BaseJudge, VerificationFailed, mars_path_default, tmp_pre, kill_pid, kill_im, diff_path_default, mars_timeout_default, \
     hash_file
 from .atomic import Atomic, Counter
 
@@ -52,6 +52,7 @@ class ISimJudge(BaseJudge):
         self.java_path = java_path
         self.diff_path = diff_path
 
+        self.tb_basename = os.path.basename(tb_path)
         self.tb_dir = tb_dir = os.path.dirname(tb_path)
         self.tcl_common_path = os.path.join(tb_dir, tcl_common_fn)
         self.tcl_common_text = 'run {}\nexit\n'.format(duration)
@@ -80,7 +81,8 @@ class ISimJudge(BaseJudge):
     def _parse(s):
         if 'error' in s.lower():
             raise VerificationFailed('ISim complained ' + s)
-
+        if '$ 0' in s:
+            return
         p = s.find('@')
         if p >= 0:
             return s[p:]
@@ -132,36 +134,61 @@ class ISimJudge(BaseJudge):
             mars_timeout=mars_timeout_default,
             keep_output_files=False,
             workers_num=None,
+            recursive=True,
+            use_glob=True,
+            blocklist=None,
             on_success=None,
             on_error=None,
+            on_omit=None,
             kill_on_error=False,
             stop_on_error=True
             ):
         if workers_num is None:
             workers_num = max(multiprocessing.cpu_count() - 2, 2)
 
-        q = Queue()
-        for path in asm_paths:
-            q.put_nowait(path)
+        if isinstance(asm_paths, str):
+            paths = [asm_paths]
+        elif use_glob:
+            paths = sum((glob.glob(path, recursive=recursive) for path in asm_paths), start=[])
+        else:
+            paths = asm_paths
 
+        q = Queue()
+        if blocklist:
+            ban_set = set(os.path.abspath(path) for path in blocklist)
+            def push(path):
+                if path in ban_set:
+                    if on_omit:
+                        on_omit(path)
+                else:
+                    q.put_nowait(path)
+        else:
+            push = q.put_nowait
+
+        for path in paths:
+            if recursive and os.path.isdir(path):
+                for asm_path in glob.glob(os.path.join(path, '**', '*.asm'), recursive=True):
+                    push(asm_path)
+            else:
+                push(path)
         workers = []
         identifiers = Atomic(set())
 
-        total = len(asm_paths)
+        total = q.qsize()
         cnt = Counter()
         stop_cnt = Counter()
-        stop_q = Queue()
 
         def kill():
             print('Killing current process', file=sys.stderr)
             kill_pid(os.getpid())
+            kill_im(self.tb_basename)
 
         def stop():
-            stop_q.put_nowait(None)
-            with stop_cnt:
-                if not stop_cnt.data:
+            with stop_cnt as scnt:
+                if not scnt:
                     print('Stopping', file=sys.stderr)
                     stop_cnt.increase()
+            kill_im(self.tb_basename)
 
         def worker(n):
             hex_fn = 'case{:04d}'.format(n)
@@ -176,10 +203,9 @@ class ISimJudge(BaseJudge):
             asm_path = None
             retrying = False
             while True:
+                if stop_cnt.data:
+                    return
                 if not retrying:
-                    if not stop_q.empty():
-                        return
-
                     try:
                         asm_path = q.get_nowait()
                     except Empty:
@@ -217,6 +243,9 @@ class ISimJudge(BaseJudge):
                     print(f'{cnt}/{total}', asm_path, 'ok')
                     if on_success:
                         on_success(asm_path)
+
+        if workers_num == 1:
+            return worker(0)
 
         for i in range(workers_num):
             t = PropagatingThread(target=worker, args=(i,), daemon=True)
