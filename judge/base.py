@@ -42,8 +42,8 @@ class MARSError(VerificationFailed):
 
 class BaseJudge:
 
-    @staticmethod
-    def __init__():
+    def __init__(self):
+        self.np = self.tb = False
         if not os.path.isdir(tmp_pre):
             os.mkdir(tmp_pre)
 
