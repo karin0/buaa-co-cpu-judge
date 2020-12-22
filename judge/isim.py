@@ -122,6 +122,7 @@ class ISim(BaseHexRunner):
     def run(self, out_path):
         if self.recompile:
             self.compile()
+            self.recompile = False
         self._communicate([os.path.normcase(self.tb_path), '-tclbatch', self.tcl_fn],
                           out_path,
                           'see ' + out_path,
