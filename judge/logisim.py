@@ -1,16 +1,13 @@
 import os, os.path, string
 import xml.etree.ElementTree as ET
 
-from .base import BaseJudge, VerificationFailed, hash_file, tmp_pre, mars_path_default, mars_timeout_default
-
-diff_path_default = 'fc' if os.name == 'nt' else 'diff'
+from .base import BaseHexRunner, VerificationFailed
 
 pc_width_default = 32
 pc_by_word_default = False
 pc_start_default = 0
 dma_width_default = 32
 dma_by_word_default = False
-logisim_timeout_default = 3
 
 hex_chars = set(filter(lambda c: not c.isupper(), string.hexdigits))
 
@@ -73,31 +70,33 @@ class LogLine:
         return None
 
 
-def gen_cpu(circ_path, prog_hex_fn, ifu_circ_name, fix):
+def gen(circ_path, hex_path, im_circ_name, tmp_dir):
     tree = ET.parse(circ_path)
     root = tree.getroot()
-    if ifu_circ_name is None:
-        cont = root.find('./circuit/comp[@name="ROM"]/a[@name="contents"]')
+    if im_circ_name is None:
+        token = './circuit/comp[@name="ROM"]/a[@name="contents"]'
     else:
-        cont = root.find('./circuit[@name="{' + ifu_circ_name + '"]/comp[@name="ROM"]/a[@name="contents"]')
+        token = './circuit[@name="{' + im_circ_name + '"]/comp[@name="ROM"]/a[@name="contents"]'
+    cont = root.find(token)
     if cont is None:
-        raise ValueError('no rom comp found for ' + circ_path)
+        raise ValueError('no rom comp found in ' + circ_path)
 
     s = cont.text
     desc = s[:s.find('\n')]
     addr_width, data_width = map(int, desc[desc.find(':') + 1:].split())
     if data_width != 32:
-        raise ValueError('data width of rom is ' + str(data_width) + ', 32 expected')
+        raise ValueError('data width of the rom is ' + str(data_width) + ', 32 expected')
     max_ins_cnt = 2 ** addr_width
 
-    with open(prog_hex_fn, 'r', encoding='utf-8') as fp:
-        prog = fp.read()
+    with open(hex_path, 'r', encoding='utf-8') as fp:
+        hex = fp.read()
 
-    with open('-image'.join(os.path.splitext(prog_hex_fn)), 'w', encoding='utf-8') as fp:
-        fp.write('v2.0 raw\n' + prog)
+    image_path = os.path.join(tmp_dir, os.path.splitext(os.path.basename(hex_path))[0] + '-image.hex')
+    with open(image_path, 'w', encoding='utf-8') as fp:
+        fp.write('v2.0 raw\n' + hex)
 
     instrs = []
-    for s in prog.splitlines():
+    for s in hex.splitlines():
         ins = to_instr(s)
         if ins:
             instrs.append(ins)
@@ -117,66 +116,63 @@ def gen_cpu(circ_path, prog_hex_fn, ifu_circ_name, fix):
     if line:
         lines.append(' '.join(line))
     cont.text = '\n'.join(lines) + '\n'
-    new_circ_path = os.path.join(tmp_pre, fix.join(os.path.splitext(os.path.basename(circ_path))))
+
+    new_circ_path = os.path.join(tmp_dir, os.path.basename(circ_path))
     tree.write(new_circ_path)
     return new_circ_path
 
 
-class LogisimJudge(BaseJudge):
-    class IllegalCircuit(VerificationFailed):
-        pass
+class IllegalCircuit(VerificationFailed):
+    pass
 
-    def __init__(self, logisim_path, mars_path=mars_path_default,
+
+class Logisim(BaseHexRunner):
+
+    def __init__(self, circ_path,
+                 logisim_path,
                  java_path='java',
-                 diff_path=diff_path_default,
                  pc_width=pc_width_default,
                  pc_by_word=pc_by_word_default,
                  pc_start=pc_start_default,
                  dma_width=dma_width_default,
                  dma_by_word=dma_by_word_default,
+                 im_circuit_name=None,
+                 **kw
                  ):
-        super().__init__()
+        super().__init__(**kw)
 
+        self.circ_path = circ_path
         self.logisim_path = logisim_path
-        self.mars_path = mars_path
         self.java_path = java_path
-        self.diff_path = diff_path
 
+        self.im_circ_name = im_circuit_name
         self.pc_width = pc_width
         self.pc_by_word = pc_by_word
         self.pc_start = pc_start
         self.dma_width = dma_width
         self.dma_by_word = dma_by_word
 
-    def _parse(self, s):
+    def parse(self, s):
+        if not s:
+            return
         try:
             r = LogLine(s).parse(
                 self.pc_width, self.pc_by_word, self.pc_start,
                 self.dma_width, self.dma_by_word
             )
         except ValueError as e:
-            raise VerificationFailed('invalid circuit output ({}): {}'.format(e, s)) from e
+            raise VerificationFailed('invalid output ({}): {}'.format(e, s)) from e
         return r
 
-    def __call__(self, circ_path, asm_path,
-                 ifu_circ_name=None,
-                 logisim_timeout=logisim_timeout_default,
-                 mars_timeout=mars_timeout_default
-                 ):
+    def set_hex_path(self, path):
+        self._set_hex_path(path)
 
-        fix = '-' + hash_file(asm_path)
-        hex_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.hex')
-        ans_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.ans')
-        self.call_mars(asm_path, hex_path, ans_path, mars_timeout)
-
+    def run(self, out_path):
         try:
-            circ_path = gen_cpu(circ_path, hex_path, ifu_circ_name, fix)
+            circ_path = gen(self.circ_path, self.get_hex_path(), self.im_circ_name, self.tmp_dir())
         except ValueError as e:
-            raise self.IllegalCircuit(e) from e
-        out_path = os.path.join(tmp_pre, os.path.basename(asm_path) + fix + '.out')
+            raise IllegalCircuit(e) from e
         self._communicate([self.java_path, '-jar', self.logisim_path, circ_path, '-tty', 'table'],
-                          out_path, self._parse, logisim_timeout,
-                          'maybe halt is incorrect, see ' + out_path, 'Logisim'
+                          out_path,
+                          'maybe the halt pin is set incorrectly, see ' + out_path
                           )
-
-        self.diff(out_path, ans_path)

@@ -1,106 +1,123 @@
 import os, subprocess
-from hashlib import md5
+from .utils import kill_im
 
-tmp_pre = 'tmp'
+timeout_default = 3
 
-diff_path_default = 'fc' if os.name == 'nt' else 'diff'
-mars_path_default = os.path.join(os.path.dirname(__file__), 'kits', 'Mars_Changed.jar')
-mars_timeout_default = 3
+INFINITE_LOOP = '1000ffff\n00000000\n'  # beq $0, $0, -1; nop;
+DISABLE_SR = '40806000\n'  # mtc0 $0
 
 
 class VerificationFailed(Exception):
     pass
 
 
-def _communicate_callback(proc, fp, handler, timeout=None):
-    for line in proc.communicate(timeout=timeout)[0].decode(errors='ignore').splitlines():
-        r = handler(line.strip())
-        if r:
+def render_msg(msg):
+    return (', ' + msg) if msg else ''
+
+
+def _communicate_callback(proc, fp, handler, timeout=None, ctx=None, raw_output_file=None):
+    s = proc.communicate(timeout=timeout)[0]
+    if raw_output_file:
+        with open(raw_output_file, 'wb') as raw:
+            raw.write(s)
+    for line in s.decode(errors='ignore').splitlines():
+        r = handler(line.strip()) if ctx is None else handler(line.strip(), ctx)
+        if r and fp:
             fp.write(r + '\n')
 
 
-def hash_file(fn):
-    with open(fn, 'rb') as fp:
-        return md5(fp.read()).hexdigest()[:10]
-
-
-def kill_pid(pid):
-    if os.name != 'nt':
-        raise NotImplementedError
-    subprocess.run(['taskkill', '/f', '/pid', str(pid)])
-
-
-def kill_im(im):
-    if os.name != 'nt':
-        raise NotImplementedError
-    subprocess.run(['taskkill', '/f', '/im', im])
-
-
-class MARSError(VerificationFailed):
-    pass
-
-
-class BaseJudge:
-
-    def __init__(self):
-        self.np = self.tb = False
-        if not os.path.isdir(tmp_pre):
-            os.mkdir(tmp_pre)
+class BaseRunner:
+    def __init__(self, timeout=None, env=None, cwd=None,
+                 kill_on_timeout=True, permit_timeout=True,
+                 raw_output_file=None
+                 ):
+        self.timeout = timeout_default if timeout is None else timeout
+        self.env = env
+        self.cwd = cwd
+        self.permit_timeout = permit_timeout
+        self.kill_on_timeout = kill_on_timeout
+        self.raw_output_file = raw_output_file
 
     @staticmethod
-    def _communicate(cmd, out_fn, handler, timeout, timeout_msg, error_meta, error_msg=None, cwd=None, env=None,
-                     nt_kill=True):
-        with open(out_fn, 'w', encoding='utf-8') as fp:
-            with subprocess.Popen(cmd, stdout=subprocess.PIPE, cwd=cwd, env=env) as proc:
-                try:
-                    _communicate_callback(proc, fp, handler, timeout)
-                except subprocess.TimeoutExpired as e:
-                    proc.kill()
-                    if nt_kill and os.name == 'nt':
-                        im = cmd[0]
-                        if not os.path.splitext(im)[1]:
-                            im += '.exe'
-                        kill_im(os.path.basename(im))
-                    _communicate_callback(proc, fp, handler)
-                    raise RuntimeError('{} timed out after {} secs'.format(error_meta, timeout)
-                                    + ((', ' + timeout_msg) if timeout_msg else '')) from e
-            if proc.returncode:
-                raise RuntimeError(error_meta + ' subprocess returned ' + str(proc.returncode)
-                                + ((', ' + error_msg) if error_msg else ''))
+    def stop():
+        pass
+
+    def parse(self, line):
+        raise TypeError
+
+    def _communicate_fp(self, cmd, fp, timeout_msg, error_msg=None, ctx=None):
+        name = self.__class__.__name__
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, cwd=self.cwd, env=self.env) as proc:
+            try:
+                _communicate_callback(proc, fp, self.parse, self.timeout, ctx=ctx,
+                                      raw_output_file=self.raw_output_file)
+            except subprocess.TimeoutExpired as e:
+                proc.kill()
+                if self.kill_on_timeout:
+                    kill_im(os.path.basename(cmd[0]))
+                _communicate_callback(proc, fp, self.parse, ctx=ctx,
+                                      raw_output_file=self.raw_output_file)
+                msg = '{} timed out after {} secs{}'.format(
+                    name, self.timeout, render_msg(timeout_msg)
+                )
+                if self.permit_timeout:
+                    print('Permitted:', msg)
+                    return
+                raise RuntimeError(msg) from e
+        if proc.returncode:
+            raise RuntimeError('{} subprocess returned {}{}'.format(
+                name, proc.returncode, render_msg(error_msg)
+            ))
+
+    def _communicate(self, cmd, out_fn, timeout_msg=None, error_msg=None, ctx=None):
+        if out_fn:
+            with open(out_fn, 'w', encoding='utf-8') as fp:
+                return self._communicate_fp(cmd, fp, timeout_msg, error_msg, ctx)
+        return self._communicate_fp(cmd, None, timeout_msg, error_msg, ctx)
+
+
+class BaseHexRunner(BaseRunner):
+    def __init__(self, appendix=None, _hex_path=None, _handler_hex_path=None, **kw):
+        super().__init__(**kw)
+        self.appendix = appendix
+        self._hex_path = _hex_path
+        self._handler_hex_path = _handler_hex_path
+        self.tmp_dir = None
+
+    def _put_appendix(self, hex_path):
+        if self.appendix:
+            with open(hex_path, 'a', encoding='utf-8') as fp:
+                fp.write('\n' + self.appendix)
+
+    def run(self, out_path):
+        raise TypeError
+
+    # to support customized path, setter should be override and getters should return None before set
+    def get_hex_path(self):
+        return self._hex_path
+
+    def get_handler_hex_path(self):
+        return self._handler_hex_path
+
+    def set_hex_path(self, path):
+        raise NotImplementedError
+
+    def set_handler_hex_path(self, path):
+        raise NotImplementedError
+
+    def _set_hex_path(self, path):
+        self._hex_path = path
+
+    def _set_handler_hex_path(self, path):
+        self._handler_hex_path = path
+
+    def set_tmp_dir(self, tmp_dir):
+        self.tmp_dir = tmp_dir
 
     @staticmethod
-    def _mars_parse(s):
-        if 'error' in s.lower():
-            raise MARSError('MARS reported ' + s)
-        if '$ 0' in s:
-            return
-        if s.startswith('@'):
-            return s
+    def run_loaded(out_path):
+        raise TypeError
 
-    def call_mars(self, asm_path, hex_path, ans_path, timeout=mars_timeout_default):
-        self._communicate([self.java_path, '-jar', self.mars_path, asm_path,
-                           'nc',
-                           'db' if self.db else '',
-                           'np' if self.np else '',
-                           'mc', 'CompactDataAtZero', 'dump', '.text',
-                           'HexText', hex_path],
-                          ans_path, self._mars_parse, timeout,
-                          'maybe an infinite loop, see ' + ans_path, 'MARS'
-                          )
-
-    def diff(self, out_path, ans_path, log_path=None, keep=False):
-        with subprocess.Popen([self.diff_path, out_path, ans_path],
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-            res = proc.communicate()
-            if proc.returncode:
-                if log_path is None:
-                    log_path = out_path + '.diff'
-                with open(log_path, 'wb') as fp:
-                    fp.write(res[0] + b'\n' + res[1])
-                # res = res[0].decode(errors='ignore') + res[1].decode(errors='ignore')
-                # print(res, file=sys.stderr)
-                raise VerificationFailed('output differs, see {}, {}, and {} for diff logs'
-                                         .format(out_path, ans_path, log_path))
-            elif not keep:
-                os.remove(out_path)
-                os.remove(ans_path)
+    def __call__(self, out_path):
+        self._put_appendix(self.get_hex_path())
+        return self.run(out_path)
