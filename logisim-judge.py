@@ -56,9 +56,8 @@ if __name__ == '__main__':
                    appendix=None if args.no_infinite_loop_appendix else INFINITE_LOOP,
                    timeout=args.logisim_timeout
                    )
-
     mars = Mars(args.mars_path, java_path=args.java_path, timeout=args.mars_timeout)
     diff = Diff(args.diff_path)
 
-    judge = MarsJudge(logi, mars)
+    judge = MarsJudge(logi, mars, diff)
     judge.all(resolve_paths(args.asm_path))

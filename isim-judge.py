@@ -47,5 +47,5 @@ if __name__ == '__main__':
     mars = Mars(args.mars_path, java_path=args.java_path, db=args.db, timeout=args.mars_timeout)
     diff = Diff(args.diff_path)
 
-    judge = MarsJudge(isim, mars)
+    judge = MarsJudge(isim, mars, diff)
     judge.all(resolve_paths(args.asm_path))
