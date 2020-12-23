@@ -49,8 +49,7 @@ class Mars(BaseRunner):
         subprocess.run([self.java_path, '-jar', self.mars_path, asm_path])
 
     def __call__(self, asm_path, out_path=None, hex_path=None, a=False, dump_segment='.text'):
-        # returns falsey value if segment to dump not found
-        cmd = [self.java_path, '-jar', self.mars_path, asm_path,
+       cmd = [self.java_path, '-jar', self.mars_path, asm_path,
                'nc',
                self.db, self.np, render_arg('a', a, self.a),
                'mc', 'CompactDataAtZero']
