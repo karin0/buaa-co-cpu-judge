@@ -7,31 +7,44 @@ hex_common_fn = 'code.txt'
 handler_hex_common_fn = 'code_handler.txt'
 duration_default = '1000 us'
 
-
-def get_platform(bin):
-    platform = ('lin', 'nt')[os.name == 'nt']
-    platform_64 = platform + '64'
-    if os.path.isdir(os.path.join(bin, platform_64)):
-        return platform_64
-    return platform
-
-
-def get_ise_path():
-    if os.name != 'nt':
-        return None
-    from winreg import ConnectRegistry, OpenKey, EnumValue, HKEY_CLASSES_ROOT
-    from shlex import split
-    reg = ConnectRegistry(None, HKEY_CLASSES_ROOT)
-    try:
-        key = OpenKey(reg, r'isefile\shell\open\Command')
-    except FileNotFoundError:
-        return None
-    cmd = EnumValue(key, 0)[1]
-    return os.path.dirname(split(cmd)[0])
-
+nil = object()
 
 class ISim(BaseHexRunner):
     name = 'ISim'
+
+    platform = None
+    @classmethod
+    def get_platform(cls, bin):
+        if not cls.platform:
+            platform = ('lin', 'nt')[os.name == 'nt']
+            platform_64 = platform + '64'
+            if os.path.isdir(os.path.join(bin, platform_64)):
+                cls.platform = platform_64
+            else:
+                cls.platform = platform
+        return cls.platform
+
+    @classmethod
+    def _get_ise_path(cls):
+        if os.name != 'nt':
+            return None
+        from winreg import ConnectRegistry, OpenKey, EnumValue, HKEY_CLASSES_ROOT
+        from shlex import split
+        reg = ConnectRegistry(None, HKEY_CLASSES_ROOT)
+        try:
+            key = OpenKey(reg, r'isefile\shell\open\Command')
+        except FileNotFoundError:
+            return None
+        cmd = EnumValue(key, 0)[1]
+        return os.path.dirname(split(cmd)[0])
+
+    ise_path = nil
+    @classmethod
+    def get_ise_path(cls):
+        if cls.ise_path is nil:
+            cls.ise_path = cls._get_ise_path()
+            print('Detected ISE installation at', cls.ise_path)
+        return cls.ise_path
 
     def __init__(self, project_path, module_name=None,
                  duration=duration_default,
@@ -47,13 +60,12 @@ class ISim(BaseHexRunner):
             if ise_path:
                 ise_path = os.path.normcase(ise_path)
             else:
-                ise_path = get_ise_path()
+                ise_path = ISim.get_ise_path()
                 if not ise_path:
                     raise VerificationFailed('ISE installation not found, specify it by ise_path')
-                print('Detected ISE installation at', ise_path)
             ise = ise_path if os.path.isdir(os.path.join(ise_path, 'bin')) else os.path.join(ise_path, 'ISE')
             bin = os.path.join(ise, 'bin')
-            platform = get_platform(bin)
+            platform = ISim.get_platform(bin)
             platform_bin = os.path.join(bin, platform)
 
             env['XILINX'] = ise
@@ -79,7 +91,7 @@ class ISim(BaseHexRunner):
 
         if not platform_bin:
             bin = os.path.join(env['XILINX'], 'bin')
-            platform_bin = os.path.join(bin, get_platform(bin))
+            platform_bin = os.path.join(bin, ISim.get_platform(bin))
 
         self.exe = exe
         self.platform_bin = platform_bin
