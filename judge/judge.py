@@ -138,9 +138,11 @@ class BaseJudge:
                     on_success(path)
 
 
+common_tmp = TmpDir(tmp_pre)
 def get_paths(asm_path):
     base = os.path.basename(asm_path)
-    return base, os.path.join(tmp_pre, base + '.out'), os.path.join(tmp_pre, base + '.ans')
+    pre = common_tmp()
+    return base, os.path.join(pre, base + '.out'), os.path.join(pre, base + '.ans')
 
 
 class MarsJudge(BaseJudge):
