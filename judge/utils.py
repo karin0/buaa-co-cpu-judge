@@ -1,10 +1,53 @@
-import os, subprocess, glob
+import os, subprocess, glob, threading, json
 from hashlib import md5
 
 
 def try_mkdir(path, func=os.mkdir):
     if not os.path.isdir(path):
         func(path)
+
+
+class CachedList:
+    def __init__(self, fn):
+        self.fn = fn
+        self.a = []
+        self.changed = False
+        self.mutex = threading.Lock()
+        self.changed_mutex = threading.Lock()
+
+    def __enter__(self):
+        try:
+            with open(self.fn, encoding='utf-8') as fp:
+                self.a = json.load(fp)
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            self.a = []
+        return self.a
+
+    def close(self):
+        with self.changed_mutex:
+            if self.changed:
+                with self.mutex:
+                    with open(self.fn, 'w', encoding='utf-8') as fp:
+                        json.dump(self.a, fp, ensure_ascii=False, indent=4, separators=(',', ': '))
+                    self.changed = False
+
+    def close_some(self, _):
+        return self.close()
+
+    def __exit__(self, t, v, tb):
+        self.close()
+
+    def __iter__(self):
+        return self.a.__iter__()
+
+    def __in__(self, v):
+        return v in self.a
+
+    def append(self, v):
+        with self.changed_mutex:
+            self.changed = True
+        with self.mutex:
+            return self.a.append(v)
 
 
 class TmpDir:
