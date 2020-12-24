@@ -1,7 +1,7 @@
 This is inspired by [
 BUAA-CO-Logisim-Judger](https://github.com/biopuppet/BUAA-CO-Logisim-Judger).
 
-This helps to verify MIPS CPU in Logisim circuits or Verilog HDL against MARS simulation behaviours of some .asm program.
+This helps to verify MIPS CPU in Logisim circuits or Verilog HDL against MARS simulation based on given .asm programs.
 
 ## Getting started
 
@@ -11,7 +11,7 @@ Set up the output pins in your `main` circuit in order of PC (32-bit by default)
 
 ### Verilog (ISim)
 
-Your test bench should provide clocks and drive the CPU. At runtime, it should `$readmemh` from `code.txt` into IM and `$display` writing accesses  as the course requires.
+Your test bench should instantiate the CPU and provide clocks. At initialization or reset, it should `$readmemh` from `code.txt` into the instruction memory and `$display` writing accesses as the course requires.
 
 ## Usage
 
@@ -45,6 +45,8 @@ $ python isim-judge.py --help
 
 ### Python APIs
 
+Refer to [example.py](example.py) for a useful wheel.
+
 #### Example
 
 ```python
@@ -59,16 +61,17 @@ judge.all(['mips1.asm', 'mips2.asm'])
 judge.all(resolve_paths('./cases'))
 judge.all(resolve_paths(['./cases', './extra-cases', 'mips1.asm']))
 
+logisim = Logisim('mips.circ', 'kits/logisim.jar', appendix=INFINITE_LOOP)
+naive_mars = Mars()
+judge = MarsJudge(logisim, naive_mars)
+judge('mips1.asm')
+
 isim = ISim('ise-projects/mips7', 'tb', appendix=INFINITE_LOOP)
 judge = MarsJudge(isim, mars)
 judge.load_handler('handler.asm')
 judge('exceptions.asm')
 
-logisim = Logisim('mips.circ', 'kits/logisim.jar')
-naive_mars = Mars()
-judge = MarsJudge(logisim, naive_mars)
-judge('mips1.asm')
-
-judge = DuetJudge(isim, logisim, naive_mars)
-judge('mips1.asm')  # Dui Pai
+std = ISim('ise-projects/mips-std', 'tb', appendix=INFINITE_LOOP)
+judge = DuetJudge(isim, std, mars)
+judge('interrupts.asm')  # Dui Pai
 ```
