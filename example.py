@@ -24,8 +24,7 @@ judge = MarsJudge(isim, mars)
 
 
 def main():
-    passes = CachedList('passes.json')
-    with passes:
+    with CachedList('passes.json') as passes:
         blocklist = passes if skip_passed_cases else None
         paths = resolve_paths(cases,
                               blocklist=blocklist,

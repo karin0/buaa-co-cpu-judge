@@ -21,7 +21,7 @@ class CachedList:
                 self.a = json.load(fp)
         except (FileNotFoundError, json.decoder.JSONDecodeError):
             self.a = []
-        return self.a
+        return self
 
     def close(self):
         with self.changed_mutex:

@@ -4,3 +4,4 @@ test*
 tmp
 *.bat
 *.sh
+*.json
