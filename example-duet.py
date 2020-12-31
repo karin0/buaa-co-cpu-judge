@@ -1,27 +1,29 @@
-from judge import Mars, ISim, MarsJudge, resolve_paths, INFINITE_LOOP
+from judge import Mars, ISim, DuetJudge, resolve_paths, INFINITE_LOOP
 from judge.utils import CachedList
 
-project_path = 'ise-projects/mips5'
+project_path = 'ise-projects/mips7'
 module_name = 'tb'
+std_project_path = 'ise-projects/mips7-std'
 
 cases = [
-    'cases/5',
-    'cases/extra',
-    'cases/case*'
+    'cases/interrupts'
 ]
 
 db = True
 duration = 'all'
 appendix = INFINITE_LOOP
 timeout = 3
-recompile = False
+recompile = True
 skip_passed_cases = True
+include_handler = True
 
 
 isim = ISim(project_path, module_name, duration=duration,
             appendix=appendix, recompile=recompile, timeout=timeout)
+std = ISim(std_project_path, module_name, duration=duration,
+           appendix=appendix, recompile=recompile, timeout=timeout)
 mars = Mars(db=db, timeout=timeout)
-judge = MarsJudge(isim, mars)
+judge = DuetJudge(isim, std, mars)
 
 
 def main():
@@ -31,8 +33,8 @@ def main():
                               blocklist=blocklist,
                               on_omit=lambda path: print('Omitting', path),
                               )
-        # judge.load_handler(handler)
         judge.all(paths,
+                  self_handler=include_handler,
                   on_success=passes.append,
                   on_error=passes.close_some,
                   )

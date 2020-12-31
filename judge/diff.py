@@ -10,10 +10,10 @@ class InconsistentResults(VerificationFailed):
 
 class Diff:
 
-    def __init__(self, diff_path=None, keep_output_files=False, allow_prefix=False):
+    def __init__(self, diff_path=None, keep_output_files=False, permit_prefix=False):
         self.diff_path = diff_path_default if diff_path is None else diff_path
         self.keep_output_files = keep_output_files
-        self.allow_prefix = allow_prefix
+        self.permit_prefix = permit_prefix
 
     def __call__(self, out_path, ans_path, log_path=None):
         def complain():
@@ -31,7 +31,7 @@ class Diff:
             if proc.returncode:
                 # res = res[0].decode(errors='ignore') + res[1].decode(errors='ignore')
                 # print(res, file=sys.stderr)
-                if self.allow_prefix:
+                if self.permit_prefix:
                     with open(out_path, 'rb') as fp1, open(ans_path, 'rb') as fp2:
                         s1 = fp1.read().strip()
                         s2 = fp2.read().strip()
